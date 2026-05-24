@@ -1,18 +1,12 @@
-// =====================================================
-// HIREIND_US - COMPLETE SERVER WITH AUTH & HIRED LOGIC
-// =====================================================
-
 require('dotenv').config();
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 const cors = require('cors');
-const helmet = require('helmet');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
-const csv = require('csv-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,7 +18,6 @@ const supabase = createClient(
 );
 
 // Middleware
-app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -70,7 +63,6 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-// ========== HELPER FUNCTIONS ==========
 function generateToken(userId) {
     return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 }
@@ -82,7 +74,6 @@ app.post('/api/auth/register', async (req, res) => {
     try {
         const { email, password, full_name, role } = req.body;
         
-        // Check if user exists
         const { data: existing } = await supabase
             .from('auth_users')
             .select('email')
@@ -93,10 +84,8 @@ app.post('/api/auth/register', async (req, res) => {
             return res.status(400).json({ error: 'Email already registered' });
         }
         
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        // Create auth user
         const { data: authUser, error: authError } = await supabase
             .from('auth_users')
             .insert({
@@ -111,7 +100,6 @@ app.post('/api/auth/register', async (req, res) => {
         
         if (authError) throw authError;
         
-        // Create role-specific profile
         if (role === 'student') {
             await supabase
                 .from('students')
@@ -119,7 +107,7 @@ app.post('/api/auth/register', async (req, res) => {
                     auth_user_id: authUser.id, 
                     full_name,
                     email,
-                    status: 'active',
+                    profile_status: 'active',
                     profile_complete: false
                 });
         } else if (role === 'recruiter') {
@@ -219,33 +207,24 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 
 // ========== STUDENT ROUTES ==========
 
-// Get student dashboard (only own data)
+// Get student dashboard
 app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'student') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        // Get student profile
         const { data: student } = await supabase
             .from('students')
             .select('*')
             .eq('auth_user_id', req.user.id)
             .single();
         
-        // Get view count (how many recruiters viewed them)
         const { count: viewCount } = await supabase
             .from('view_logs')
             .select('*', { count: 'exact', head: true })
             .eq('student_id', student.id);
         
-        // Get contact count (how many recruiters contacted)
-        const { count: contactCount } = await supabase
-            .from('contact_logs')
-            .select('*', { count: 'exact', head: true })
-            .eq('student_id', student.id);
-        
-        // Get student skills
         const { data: skills } = await supabase
             .from('student_skills')
             .select('skills(*)')
@@ -255,8 +234,7 @@ app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
             success: true,
             student,
             stats: {
-                profile_views: viewCount || 0,
-                recruiter_contacts: contactCount || 0
+                profile_views: viewCount || 0
             },
             skills: skills?.map(s => s.skills) || []
         });
@@ -273,12 +251,6 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        const { data: existingStudent } = await supabase
-            .from('students')
-            .select('id')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        
         let resume_url = null;
         if (req.file) {
             const fileName = Date.now() + '-' + req.file.originalname;
@@ -294,11 +266,21 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
         }
         
         const updateData = {
-            ...req.body,
-            resume_url: resume_url || req.body.resume_url,
-            updated_at: new Date(),
-            profile_complete: true
+            full_name: req.body.full_name,
+            phone: req.body.phone,
+            current_city: req.body.current_city,
+            current_state: req.body.current_state,
+            university_name: req.body.university_name,
+            graduation_date: req.body.graduation_date,
+            visa_type: req.body.visa_type,
+            linkedin_url: req.body.linkedin_url,
+            github_url: req.body.github_url,
+            is_actively_looking: req.body.is_actively_looking === 'on',
+            profile_complete: true,
+            updated_at: new Date()
         };
+        
+        if (resume_url) updateData.resume_url = resume_url;
         
         const { data: student, error } = await supabase
             .from('students')
@@ -309,18 +291,16 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
         
         if (error) throw error;
         
-        // Update skills if provided
+        // Update skills
         if (req.body.skills) {
-            const skills = req.body.skills.split(',').map(s => s.trim());
+            const skillNames = req.body.skills.split(',').map(s => s.trim());
             
-            // Clear existing skills
             await supabase
                 .from('student_skills')
                 .delete()
                 .eq('student_id', student.id);
             
-            // Add new skills
-            for (const skillName of skills) {
+            for (const skillName of skillNames) {
                 let { data: skill } = await supabase
                     .from('skills')
                     .select('id')
@@ -344,59 +324,50 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
         res.json({ success: true, student });
         
     } catch (error) {
+        console.error('Update error:', error);
         res.status(500).json({ error: 'Failed to update profile' });
     }
 });
 
 // ========== RECRUITER ROUTES ==========
 
-// Search active students (only active, not hired)
+// Search active students
 app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        const { state, visa, skill, university } = req.body;
+        const { state, visa } = req.body;
         
         let query = supabase
             .from('students')
             .select('*')
-            .eq('status', 'active')
-            .eq('is_actively_looking', true)
-            .eq('profile_complete', true);
+            .eq('profile_status', 'active')
+            .eq('is_actively_looking', true);
         
-        if (state) query = query.eq('current_state', state);
-        if (visa) query = query.eq('visa_type', visa);
-        if (university) query = query.ilike('university_name', `%${university}%`);
+        if (state && state !== '') query = query.eq('current_state', state);
+        if (visa && visa !== '') query = query.eq('visa_type', visa);
         
         const { data: students, error } = await query;
         
         if (error) throw error;
         
-        // Log search
-        const { data: recruiter } = await supabase
-            .from('recruiters')
-            .select('id')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        
-        await supabase
-            .from('recruiters')
-            .update({ total_searches: supabase.raw('total_searches + 1') })
-            .eq('id', recruiter.id);
-        
-        // Hide contact info (email, phone) until credit spent
-        const hiddenStudents = students.map(s => ({
-            ...s,
-            email: undefined,
-            phone: undefined,
-            resume_url: undefined
-        }));
+        // Hide contact info
+        const hiddenStudents = students?.map(s => ({
+            id: s.id,
+            full_name: s.full_name,
+            current_city: s.current_city,
+            current_state: s.current_state,
+            university_name: s.university_name,
+            visa_type: s.visa_type,
+            graduation_date: s.graduation_date,
+            years_of_experience: s.years_of_experience
+        })) || [];
         
         res.json({
             success: true,
-            count: students.length,
+            count: hiddenStudents.length,
             students: hiddenStudents
         });
         
@@ -405,7 +376,49 @@ app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
     }
 });
 
-// View student details (costs credit for contact info)
+// Get recruiter stats
+app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('*')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        const { count: totalStudents } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('profile_status', 'active');
+        
+        const { count: optStudents } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .in('visa_type', ['OPT_1st_year', 'OPT_2nd_year', 'STEM_OPT'])
+            .eq('profile_status', 'active');
+        
+        res.json({
+            success: true,
+            totalStudents: totalStudents || 0,
+            optStudents: optStudents || 0,
+            recruiter: {
+                credits: recruiter?.credits_remaining || 0,
+                tier: recruiter?.subscription_tier || 'free',
+                total_searches: recruiter?.total_searches || 0,
+                total_contacts: recruiter?.total_contacts || 0,
+                total_hires: recruiter?.total_hires || 0
+            }
+        });
+        
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to get stats' });
+    }
+});
+
+// View full student profile
 app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
@@ -414,38 +427,42 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
         
         const { studentId } = req.params;
         
-        // Get recruiter
-        const { data: recruiter } = await supabase
-            .from('recruiters')
-            .select('id, credits_remaining')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        
-        // Get student
         const { data: student, error } = await supabase
             .from('students')
             .select('*')
             .eq('id', studentId)
-            .eq('status', 'active')
+            .eq('profile_status', 'active')
             .single();
         
         if (error || !student) {
             return res.status(404).json({ error: 'Student not found' });
         }
         
-        // Log view
-        await supabase
-            .from('view_logs')
-            .insert({
-                recruiter_id: recruiter.id,
-                student_id: studentId
-            });
+        // Get skills
+        const { data: skills } = await supabase
+            .from('student_skills')
+            .select('skills(*)')
+            .eq('student_id', student.id);
         
-        // Return full profile (contact info included)
+        // Log view
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (recruiter) {
+            await supabase
+                .from('view_logs')
+                .insert({ recruiter_id: recruiter.id, student_id: student.id });
+        }
+        
         res.json({
             success: true,
-            student,
-            recruiter_credits: recruiter.credits_remaining
+            student: {
+                ...student,
+                skills: skills?.map(s => s.skills?.skill_name) || []
+            }
         });
         
     } catch (error) {
@@ -453,7 +470,7 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
     }
 });
 
-// Contact student (costs 1 credit)
+// Contact student (costs credit)
 app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
@@ -462,19 +479,16 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
         
         const { student_id, message } = req.body;
         
-        // Get recruiter
         const { data: recruiter } = await supabase
             .from('recruiters')
             .select('id, credits_remaining, company_name')
             .eq('auth_user_id', req.user.id)
             .single();
         
-        // Check credits
         if (recruiter.credits_remaining <= 0) {
-            return res.status(402).json({ error: 'Insufficient credits. Please upgrade your plan.' });
+            return res.status(402).json({ error: 'Insufficient credits. Please upgrade.' });
         }
         
-        // Get student
         const { data: student } = await supabase
             .from('students')
             .select('email, full_name')
@@ -493,23 +507,9 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
         // Log contact
         await supabase
             .from('contact_logs')
-            .insert({
-                recruiter_id: recruiter.id,
-                student_id: student_id,
-                credits_used: 1
-            });
+            .insert({ recruiter_id: recruiter.id, student_id: student_id });
         
-        // Add to shortlist
-        await supabase
-            .from('shortlists')
-            .upsert({
-                recruiter_id: recruiter.id,
-                student_id: student_id,
-                status: 'contacted'
-            });
-        
-        // In production, send actual email here
-        console.log(`Email would be sent to ${student.email} from ${recruiter.company_name}: ${message}`);
+        console.log(`📧 Email to ${student.email}: ${message}`);
         
         res.json({ 
             success: true, 
@@ -531,177 +531,31 @@ app.post('/api/recruiter/mark-hired', authenticateToken, async (req, res) => {
         
         const { student_id } = req.body;
         
-        // Get recruiter
         const { data: recruiter } = await supabase
             .from('recruiters')
             .select('id')
             .eq('auth_user_id', req.user.id)
             .single();
         
-        // Update student status to hired
-        const { data: student, error } = await supabase
+        await supabase
             .from('students')
             .update({ 
-                status: 'hired',
+                profile_status: 'hired',
                 hired_by_recruiter_id: recruiter.id,
                 hired_at: new Date(),
                 is_actively_looking: false
             })
-            .eq('id', student_id)
-            .select()
-            .single();
+            .eq('id', student_id);
         
-        if (error) throw error;
-        
-        // Update recruiter hire count
         await supabase
             .from('recruiters')
             .update({ total_hires: supabase.raw('total_hires + 1') })
             .eq('id', recruiter.id);
         
-        // Update shortlist status
-        await supabase
-            .from('shortlists')
-            .update({ status: 'hired' })
-            .eq('recruiter_id', recruiter.id)
-            .eq('student_id', student_id);
-        
-        res.json({ 
-            success: true, 
-            message: 'Student marked as hired. They will no longer appear in searches.'
-        });
+        res.json({ success: true, message: 'Student marked as hired' });
         
     } catch (error) {
         res.status(500).json({ error: 'Failed to mark as hired' });
-    }
-});
-
-// Get recruiter credits/stats
-app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role !== 'recruiter') {
-            return res.status(403).json({ error: 'Access denied' });
-        }
-        
-        const { data: recruiter } = await supabase
-            .from('recruiters')
-            .select('*')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        
-        const { count: totalStudents } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'active');
-        
-        const { count: optStudents } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .in('visa_type', ['OPT_1st_year', 'OPT_2nd_year', 'STEM_OPT'])
-            .eq('status', 'active');
-        
-        res.json({
-            success: true,
-            totalStudents: totalStudents || 0,
-            optStudents: optStudents || 0,
-            recruiter: {
-                credits: recruiter.credits_remaining,
-                tier: recruiter.subscription_tier,
-                total_searches: recruiter.total_searches,
-                total_contacts: recruiter.total_contacts,
-                total_hires: recruiter.total_hires
-            }
-        });
-        
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to get stats' });
-    }
-});
-
-// ========== ADMIN ROUTES ==========
-
-// Get all students (admin only)
-app.get('/api/admin/students', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ error: 'Access denied' });
-        }
-        
-        const { data: students } = await supabase
-            .from('students')
-            .select('*, auth_users(email, full_name)')
-            .order('created_at', { ascending: false });
-        
-        res.json({ success: true, students });
-        
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to get students' });
-    }
-});
-
-// ========== CSV BULK UPLOAD ==========
-app.post('/api/admin/bulk-upload', authenticateToken, upload.single('csv'), async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ error: 'Access denied' });
-        }
-        
-        const results = [];
-        let successCount = 0;
-        
-        fs.createReadStream(req.file.path)
-            .pipe(csv())
-            .on('data', (data) => results.push(data))
-            .on('end', async () => {
-                for (const row of results) {
-                    try {
-                        // Create auth user
-                        const tempPassword = Math.random().toString(36).slice(-8);
-                        const hashedPassword = await bcrypt.hash(tempPassword, 10);
-                        
-                        const { data: authUser } = await supabase
-                            .from('auth_users')
-                            .insert({
-                                email: row.email,
-                                password_hash: hashedPassword,
-                                full_name: row.full_name,
-                                role: 'student',
-                                is_verified: true
-                            })
-                            .select()
-                            .single();
-                        
-                        if (authUser) {
-                            await supabase
-                                .from('students')
-                                .insert({
-                                    auth_user_id: authUser.id,
-                                    full_name: row.full_name,
-                                    email: row.email,
-                                    current_city: row.city,
-                                    current_state: row.state,
-                                    university_name: row.university,
-                                    graduation_date: row.graduation_date,
-                                    visa_type: row.visa_type,
-                                    status: 'active',
-                                    profile_complete: true
-                                });
-                            successCount++;
-                        }
-                    } catch (e) {
-                        console.error('Bulk insert error:', e);
-                    }
-                }
-                
-                res.json({
-                    success: true,
-                    total: results.length,
-                    imported: successCount
-                });
-            });
-        
-    } catch (error) {
-        res.status(500).json({ error: 'Bulk upload failed' });
     }
 });
 
@@ -710,20 +564,6 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-// Start server
 app.listen(PORT, () => {
-    console.log(`
-    ╔══════════════════════════════════════════════════════╗
-    ║                                                      ║
-    ║   🚀 HIREIND_US v2.0 - Production Server Running    ║
-    ║                                                      ║
-    ║   📡 Port: ${PORT}                                      ║
-    ║   🌐 URL: http://localhost:${PORT}                     ║
-    ║                                                      ║
-    ║   ✅ Authentication: Active                          ║
-    ║   ✅ Credit System: Active                           ║
-    ║   ✅ Hired Logic: Active                             ║
-    ║                                                      ║
-    ╚══════════════════════════════════════════════════════╝
-    `);
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
