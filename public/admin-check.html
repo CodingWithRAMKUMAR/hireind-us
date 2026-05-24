@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Check</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #0A0F1E; color: white; }
+        pre { background: #1a1f3a; padding: 15px; border-radius: 10px; overflow-x: auto; }
+        button { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        input { background: #1a1f3a; border: 1px solid #667eea; color: white; padding: 10px; border-radius: 5px; margin: 5px; width: 250px; }
+        .success { color: #48bb78; }
+        .error { color: #f56565; }
+        .info { color: #4299e1; }
+    </style>
+</head>
+<body>
+    <h1>Admin Login & API Test</h1>
+    
+    <div style="margin: 20px 0;">
+        <h3>Login Form</h3>
+        <input type="text" id="email" placeholder="Email" value="admin@hireind.com">
+        <input type="password" id="password" placeholder="Password" value="Admin123!">
+        <button onclick="testLogin()">Login</button>
+        <button onclick="clearStorage()">Clear Storage</button>
+    </div>
+    
+    <div>
+        <button onclick="testStats()">Test Stats (requires login first)</button>
+        <button onclick="testStudents()">Test Students (requires login first)</button>
+        <button onclick="showToken()">Show Current Token</button>
+    </div>
+    
+    <pre id="output">Ready. Click Login first...</pre>
+
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info');
+            output.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            output.innerHTML = '';
+        }
+
+        function clearStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            log('✅ Storage cleared!', 'success');
+        }
+
+        function showToken() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                log(`Token exists: ${token.substring(0, 50)}...`, 'success');
+            } else {
+                log('No token found. Please login first.', 'error');
+            }
+        }
+
+        async function testLogin() {
+            clearOutput();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            log(`Logging in as: ${email}`, 'info');
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                log(`Status: ${response.status}`, 'info');
+                log(`Response: ${JSON.stringify(data, null, 2)}`, 'info');
+                
+                if (data.success && data.token) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    log(`✅ LOGIN SUCCESSFUL!`, 'success');
+                    log(`User role: ${data.user.role}`, 'success');
+                    log(`Token saved. You can now test Stats and Students.`, 'success');
+                } else {
+                    log(`❌ Login failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testStats() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                log('❌ No token. Please login first!', 'error');
+                return;
+            }
+            
+            log('Testing /api/admin/stats...', 'info');
+            
+            try {
+                const response = await fetch('/api/admin/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                log(`Status: ${response.status}`, 'info');
+                log(`Response: ${JSON.stringify(data, null, 2)}`, 'info');
+                
+                if (data.success) {
+                    log(`✅ Stats API WORKING!`, 'success');
+                    log(`Total Students: ${data.stats?.totalStudents || 0}`, 'success');
+                    log(`Active Students: ${data.stats?.activeStudents || 0}`, 'success');
+                } else {
+                    log(`❌ Stats API failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testStudents() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                log('❌ No token. Please login first!', 'error');
+                return;
+            }
+            
+            log('Testing /api/admin/students...', 'info');
+            
+            try {
+                const response = await fetch('/api/admin/students', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                log(`Status: ${response.status}`, 'info');
+                log(`Response: ${JSON.stringify(data, null, 2)}`, 'info');
+                
+                if (data.success) {
+                    log(`✅ Students API WORKING!`, 'success');
+                    log(`Found ${data.students?.length || 0} students`, 'success');
+                } else {
+                    log(`❌ Students API failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
