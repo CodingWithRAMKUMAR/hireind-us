@@ -994,6 +994,70 @@ app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) =>
         res.status(500).json({ error: 'Failed to get resume' });
     }
 });
+// ========== ADMIN ROUTES ==========
+
+// Admin Stats
+app.get('/api/admin/stats', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { count: totalStudents } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true });
+        
+        const { count: activeStudents } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('profile_status', 'active');
+        
+        const { count: totalRecruiters } = await supabase
+            .from('recruiters')
+            .select('*', { count: 'exact', head: true });
+        
+        const { count: totalHires } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('profile_status', 'hired');
+        
+        res.json({
+            success: true,
+            stats: {
+                totalStudents: totalStudents || 0,
+                activeStudents: activeStudents || 0,
+                totalRecruiters: totalRecruiters || 0,
+                totalHires: totalHires || 0
+            }
+        });
+        
+    } catch (error) {
+        console.error('Admin stats error:', error);
+        res.status(500).json({ error: 'Failed to get stats' });
+    }
+});
+
+// Admin Get All Students
+app.get('/api/admin/students', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { data: students, error } = await supabase
+            .from('students')
+            .select('*, auth_users(email, full_name)')
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        res.json({ success: true, students: students || [] });
+        
+    } catch (error) {
+        console.error('Admin students error:', error);
+        res.status(500).json({ error: 'Failed to get students' });
+    }
+});
 
 // Health check
 app.get('/api/health', (req, res) => {
