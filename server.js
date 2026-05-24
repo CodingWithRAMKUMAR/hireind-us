@@ -654,7 +654,7 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
         // Get student details
         const { data: student, error: studentError } = await supabase
             .from('students')
-            .select('email, full_name')
+            .select('email, full_name, auth_user_id')
             .eq('id', student_id)
             .single();
         
@@ -994,6 +994,7 @@ app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) =>
         res.status(500).json({ error: 'Failed to get resume' });
     }
 });
+
 // ========== ADMIN ROUTES ==========
 
 // Admin Stats
@@ -1070,4 +1071,5 @@ app.listen(PORT, () => {
     console.log(`✅ Multiple resumes: ENABLED`);
     console.log(`✅ Interview scheduling: ENABLED`);
     console.log(`✅ Notifications: ENABLED`);
+    console.log(`✅ Admin routes: ENABLED`);
 });
