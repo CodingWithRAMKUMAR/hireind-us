@@ -1,624 +1,343 @@
-require('dotenv').config();
-const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
-const multer = require('multer');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const path = require('path');
-const fs = require('fs');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Supabase Client
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY
-);
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
-
-// Serve login page as default
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-// File upload configuration
-const storage = multer.diskStorage({
-    destination: './uploads/',
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
-    }
-});
-const upload = multer({ storage: storage });
-
-// Ensure uploads folder exists
-if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
-
-// ========== AUTH MIDDLEWARE ==========
-const authenticateToken = async (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    if (!token) {
-        return res.status(401).json({ error: 'Access token required' });
-    }
-    
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const { data: user, error } = await supabase
-            .from('auth_users')
-            .select('*')
-            .eq('id', decoded.userId)
-            .single();
-        
-        if (error || !user) {
-            return res.status(401).json({ error: 'Invalid token' });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - HireIND_US</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0A0F1E; color: white; }
+        .navbar {
+            background: rgba(10, 14, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
-        
-        req.user = user;
-        next();
-    } catch (error) {
-        return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-};
+        .logo { display: flex; align-items: center; gap: 0.75rem; }
+        .logo i { font-size: 1.5rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .logo span { font-size: 1.2rem; font-weight: 700; color: white; }
+        .logout-btn { background: rgba(245, 101, 101, 0.2); border: 1px solid #f56565; padding: 0.5rem 1rem; border-radius: 0.5rem; color: #f56565; cursor: pointer; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        .welcome-section {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15));
+            border-radius: 1.5rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .welcome-title { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: rgba(15, 20, 40, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .stat-value { font-size: 2rem; font-weight: 800; color: #667eea; }
+        .profile-card {
+            background: rgba(15, 20, 40, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 1rem;
+            padding: 2rem;
+        }
+        .section-title { font-size: 1.3rem; font-weight: 600; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+        .profile-field { margin-bottom: 1rem; }
+        .profile-label { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-bottom: 0.25rem; }
+        .profile-value { font-size: 0.95rem; color: white; word-break: break-word; }
+        .skills-container { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+        .skill-tag { background: linear-gradient(135deg, #667eea, #764ba2); padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; }
+        .edit-btn { background: linear-gradient(135deg, #667eea, #764ba2); border: none; padding: 0.5rem 1.5rem; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: #1a1f3a;
+            border-radius: 1rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.3);
+        }
+        .modal-close { background: none; border: none; font-size: 1.5rem; color: white; cursor: pointer; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: rgba(255,255,255,0.7); }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0A0F1E;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 0.5rem;
+            color: white;
+        }
+        .form-group select option { background: #0A0F1E; color: white; }
+        .save-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+        .loading { text-align: center; padding: 2rem; }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(102, 126, 234, 0.2);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 768px) { .container { padding: 1rem; } .profile-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo"><i class="fas fa-user-graduate"></i><span>HireIND_US | Student Portal</span></div>
+        <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </nav>
 
-function generateToken(userId) {
-    return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
-}
+    <div class="container">
+        <div class="welcome-section">
+            <h1 class="welcome-title" id="welcomeName">Welcome, Student!</h1>
+            <p>Complete your profile to get discovered by top recruiters.</p>
+        </div>
 
-// ========== AUTH ROUTES ==========
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value" id="profileViews">-</div><div>Profile Views</div></div>
+            <div class="stat-card"><div class="stat-value" id="profileStatus">-</div><div>Profile Status</div></div>
+        </div>
 
-// Register
-app.post('/api/auth/register', async (req, res) => {
-    try {
-        const { email, password, full_name, role } = req.body;
-        
-        const { data: existing } = await supabase
-            .from('auth_users')
-            .select('email')
-            .eq('email', email)
-            .single();
-        
-        if (existing) {
-            return res.status(400).json({ error: 'Email already registered' });
-        }
-        
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        const { data: authUser, error: authError } = await supabase
-            .from('auth_users')
-            .insert({
-                email,
-                password_hash: hashedPassword,
-                full_name,
-                role,
-                is_verified: true
-            })
-            .select()
-            .single();
-        
-        if (authError) throw authError;
-        
-        if (role === 'student') {
-            await supabase
-                .from('students')
-                .insert({ 
-                    auth_user_id: authUser.id, 
-                    full_name,
-                    email,
-                    profile_status: 'active',
-                    profile_complete: false
-                });
-        } else if (role === 'recruiter') {
-            await supabase
-                .from('recruiters')
-                .insert({ 
-                    auth_user_id: authUser.id, 
-                    company_name: 'New Company',
-                    credits_remaining: 10,
-                    subscription_tier: 'free'
-                });
-        }
-        
-        const token = generateToken(authUser.id);
-        
-        res.json({
-            success: true,
-            token,
-            user: {
-                id: authUser.id,
-                email: authUser.email,
-                full_name: authUser.full_name,
-                role: authUser.role
-            }
-        });
-        
-    } catch (error) {
-        console.error('Register error:', error);
-        res.status(500).json({ error: 'Registration failed' });
-    }
-});
+        <div class="profile-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div class="section-title"><i class="fas fa-id-card"></i><span>My Profile</span></div>
+                <button class="edit-btn" onclick="openEditModal()"><i class="fas fa-edit"></i> Edit Profile</button>
+            </div>
+            <div id="profileContent"><div class="loading"><div class="spinner"></div><p>Loading profile...</p></div></div>
+        </div>
+    </div>
 
-// Login
-app.post('/api/auth/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        
-        const { data: user, error } = await supabase
-            .from('auth_users')
-            .select('*')
-            .eq('email', email)
-            .single();
-        
-        if (error || !user) {
-            return res.status(401).json({ error: 'Invalid email or password' });
-        }
-        
-        const validPassword = await bcrypt.compare(password, user.password_hash);
-        if (!validPassword) {
-            return res.status(401).json({ error: 'Invalid email or password' });
-        }
-        
-        const token = generateToken(user.id);
-        
-        res.json({
-            success: true,
-            token,
-            user: {
-                id: user.id,
-                email: user.email,
-                full_name: user.full_name,
-                role: user.role
-            }
-        });
-        
-    } catch (error) {
-        res.status(500).json({ error: 'Login failed' });
-    }
-});
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><h3>Edit Profile</h3><button class="modal-close" onclick="closeEditModal()">&times;</button></div>
+            <form id="editProfileForm">
+                <div class="form-group"><label>Full Name</label><input type="text" name="full_name" id="editFullName"></div>
+                <div class="form-group"><label>Phone</label><input type="tel" name="phone" id="editPhone"></div>
+                <div class="form-group"><label>Current City</label><input type="text" name="current_city" id="editCity"></div>
+                <div class="form-group"><label>State</label>
+                    <select name="current_state" id="editState">
+                        <option value="">Select State</option>
+                        <option value="CA">California</option>
+                        <option value="TX">Texas</option>
+                        <option value="NY">New York</option>
+                        <option value="MA">Massachusetts</option>
+                        <option value="WA">Washington</option>
+                        <option value="IL">Illinois</option>
+                        <option value="GA">Georgia</option>
+                        <option value="NC">North Carolina</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>University</label><input type="text" name="university_name" id="editUniversity"></div>
+                <div class="form-group"><label>Graduation Date</label><input type="date" name="graduation_date" id="editGraduation"></div>
+                <div class="form-group"><label>Visa Status</label>
+                    <select name="visa_type" id="editVisa">
+                        <option value="">Select Visa</option>
+                        <option value="OPT_1st_year">OPT (1st year)</option>
+                        <option value="OPT_2nd_year">OPT (2nd year)</option>
+                        <option value="STEM_OPT">STEM OPT</option>
+                        <option value="H1B">H1B</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Skills (comma separated)</label><input type="text" name="skills" id="editSkills" placeholder="Python, React, AWS"></div>
+                <div class="form-group"><label>LinkedIn URL</label><input type="url" name="linkedin_url" id="editLinkedin"></div>
+                <div class="form-group"><label>GitHub URL</label><input type="url" name="github_url" id="editGithub"></div>
+                <div class="form-group"><label><input type="checkbox" name="is_actively_looking" id="editLooking"> I am actively looking for opportunities</label></div>
+                <button type="submit" class="save-btn">Save Changes</button>
+            </form>
+        </div>
+    </div>
 
-// Get current user
-app.get('/api/auth/me', authenticateToken, async (req, res) => {
-    let profile = null;
-    
-    if (req.user.role === 'student') {
-        const { data } = await supabase
-            .from('students')
-            .select('*')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        profile = data;
-    } else if (req.user.role === 'recruiter') {
-        const { data } = await supabase
-            .from('recruiters')
-            .select('*')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        profile = data;
-    }
-    
-    res.json({ 
-        success: true, 
-        user: req.user,
-        profile
-    });
-});
+    <script>
+        const API_URL = '';
+        let studentData = null;
 
-// ========== STUDENT ROUTES ==========
+        function getToken() { return localStorage.getItem('token'); }
 
-// Get student dashboard
-app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role !== 'student') {
-            return res.status(403).json({ error: 'Access denied' });
+        function checkAuth() {
+            if (!getToken()) { window.location.href = '/login.html'; return false; }
+            return true;
         }
-        
-        const { data: student, error } = await supabase
-            .from('students')
-            .select('*')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        
-        if (error) {
-            console.error('Student fetch error:', error);
-            return res.status(500).json({ error: 'Failed to fetch student data' });
-        }
-        
-        const { count: viewCount } = await supabase
-            .from('view_logs')
-            .select('*', { count: 'exact', head: true })
-            .eq('student_id', student.id);
-        
-        const { data: skills } = await supabase
-            .from('student_skills')
-            .select('skills(*)')
-            .eq('student_id', student.id);
-        
-        res.json({
-            success: true,
-            student,
-            stats: {
-                profile_views: viewCount || 0,
-                recruiter_contacts: 0
-            },
-            skills: skills?.map(s => s.skills) || []
-        });
-        
-    } catch (error) {
-        console.error('Dashboard error:', error);
-        res.status(500).json({ error: 'Failed to load dashboard' });
-    }
-});
 
-// Update student profile (FIXED)
-app.post('/api/student/update', authenticateToken, upload.single('resume'), async (req, res) => {
-    try {
-        if (req.user.role !== 'student') {
-            return res.status(403).json({ error: 'Access denied' });
-        }
-        
-        console.log('Received update request for user:', req.user.id);
-        console.log('Request body:', req.body);
-        
-        // First get the student record
-        const { data: existingStudent, error: fetchError } = await supabase
-            .from('students')
-            .select('id')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        
-        if (fetchError) {
-            console.error('Error fetching student:', fetchError);
-            return res.status(500).json({ error: 'Student record not found' });
-        }
-        
-        let resume_url = null;
-        if (req.file) {
-            const fileName = Date.now() + '-' + req.file.originalname;
-            const { error: uploadError } = await supabase.storage
-                .from('resumes')
-                .upload(fileName, req.file.buffer);
-            if (!uploadError) {
-                const { data: urlData } = supabase.storage
-                    .from('resumes')
-                    .getPublicUrl(fileName);
-                resume_url = urlData.publicUrl;
-            }
-        }
-        
-        // Prepare update data - only include fields that exist in the table
-        const updateData = {
-            updated_at: new Date().toISOString()
-        };
-        
-        // Only add fields that are provided and not empty
-        if (req.body.full_name !== undefined && req.body.full_name !== '') updateData.full_name = req.body.full_name;
-        if (req.body.phone !== undefined) updateData.phone = req.body.phone;
-        if (req.body.current_city !== undefined) updateData.current_city = req.body.current_city;
-        if (req.body.current_state !== undefined) updateData.current_state = req.body.current_state;
-        if (req.body.university_name !== undefined && req.body.university_name !== '') updateData.university_name = req.body.university_name;
-        if (req.body.graduation_date !== undefined && req.body.graduation_date !== '') updateData.graduation_date = req.body.graduation_date;
-        if (req.body.visa_type !== undefined && req.body.visa_type !== '') updateData.visa_type = req.body.visa_type;
-        if (req.body.linkedin_url !== undefined) updateData.linkedin_url = req.body.linkedin_url;
-        if (req.body.github_url !== undefined) updateData.github_url = req.body.github_url;
-        if (req.body.is_actively_looking !== undefined) {
-            updateData.is_actively_looking = req.body.is_actively_looking === 'on' || req.body.is_actively_looking === true;
-        }
-        if (resume_url) updateData.resume_url = resume_url;
-        
-        // Always set profile_complete to true when updating
-        updateData.profile_complete = true;
-        
-        console.log('Updating student with data:', updateData);
-        
-        const { data: student, error: updateError } = await supabase
-            .from('students')
-            .update(updateData)
-            .eq('auth_user_id', req.user.id)
-            .select()
-            .single();
-        
-        if (updateError) {
-            console.error('Update error:', updateError);
-            return res.status(500).json({ error: 'Failed to update profile: ' + updateError.message });
-        }
-        
-        // Update skills if provided
-        if (req.body.skills && req.body.skills.trim() !== '') {
-            const skillNames = req.body.skills.split(',').map(s => s.trim()).filter(s => s !== '');
+        async function loadDashboard() {
+            if (!checkAuth()) return;
             
-            // Delete existing skills
-            await supabase
-                .from('student_skills')
-                .delete()
-                .eq('student_id', student.id);
+            try {
+                const response = await fetch(`${API_URL}/api/student/dashboard`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    studentData = result.student;
+                    document.getElementById('welcomeName').innerHTML = `Welcome, ${result.student.full_name || 'Student'}!`;
+                    document.getElementById('profileViews').innerText = result.stats?.profile_views || 0;
+                    document.getElementById('profileStatus').innerHTML = result.student.profile_complete ? '✅ Complete' : '⚠️ Incomplete';
+                    displayProfile(result);
+                } else if (result.error === 'Access token required') {
+                    logout();
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        function displayProfile(data) {
+            const student = data.student;
+            const skills = data.skills || [];
             
-            // Add new skills
-            for (const skillName of skillNames) {
-                let { data: skill } = await supabase
-                    .from('skills')
-                    .select('id')
-                    .eq('skill_name', skillName)
-                    .single();
+            const profileHtml = `
+                <div class="profile-grid">
+                    <div>
+                        <div class="profile-field"><div class="profile-label">Full Name</div><div class="profile-value">${escapeHtml(student.full_name) || 'Not provided'}</div></div>
+                        <div class="profile-field"><div class="profile-label">Email</div><div class="profile-value">${escapeHtml(student.email) || 'Not provided'}</div></div>
+                        <div class="profile-field"><div class="profile-label">Phone</div><div class="profile-value">${escapeHtml(student.phone) || 'Not provided'}</div></div>
+                        <div class="profile-field"><div class="profile-label">Location</div><div class="profile-value">${escapeHtml(student.current_city) || 'N/A'}, ${escapeHtml(student.current_state) || 'N/A'}</div></div>
+                    </div>
+                    <div>
+                        <div class="profile-field"><div class="profile-label">University</div><div class="profile-value">${escapeHtml(student.university_name) || 'Not provided'}</div></div>
+                        <div class="profile-field"><div class="profile-label">Graduation Date</div><div class="profile-value">${student.graduation_date || 'Not provided'}</div></div>
+                        <div class="profile-field"><div class="profile-label">Visa Status</div><div class="profile-value">${formatVisa(student.visa_type)}</div></div>
+                        <div class="profile-field"><div class="profile-label">Looking for jobs?</div><div class="profile-value">${student.is_actively_looking ? '✅ Yes' : '❌ No'}</div></div>
+                    </div>
+                </div>
+                <div class="profile-field"><div class="profile-label">Skills</div><div class="skills-container">${skills.map(s => `<span class="skill-tag">${escapeHtml(s.skill_name)}</span>`).join('') || '<span>No skills added</span>'}</div></div>
+                <div class="profile-field"><div class="profile-label">LinkedIn</div><div class="profile-value">${student.linkedin_url ? `<a href="${student.linkedin_url}" target="_blank" style="color:#667eea">${escapeHtml(student.linkedin_url)}</a>` : 'Not provided'}</div></div>
+                <div class="profile-field"><div class="profile-label">GitHub</div><div class="profile-value">${student.github_url ? `<a href="${student.github_url}" target="_blank" style="color:#667eea">${escapeHtml(student.github_url)}</a>` : 'Not provided'}</div></div>
+            `;
+            
+            document.getElementById('profileContent').innerHTML = profileHtml;
+        }
+
+        function formatVisa(visa) {
+            const map = {
+                'OPT_1st_year': 'OPT (1st year)',
+                'OPT_2nd_year': 'OPT (2nd year)',
+                'STEM_OPT': 'STEM OPT',
+                'H1B': 'H1B'
+            };
+            return map[visa] || visa || 'Not specified';
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function openEditModal() {
+            if (!studentData) return;
+            
+            document.getElementById('editFullName').value = studentData.full_name || '';
+            document.getElementById('editPhone').value = studentData.phone || '';
+            document.getElementById('editCity').value = studentData.current_city || '';
+            document.getElementById('editState').value = studentData.current_state || '';
+            document.getElementById('editUniversity').value = studentData.university_name || '';
+            document.getElementById('editGraduation').value = studentData.graduation_date || '';
+            document.getElementById('editVisa').value = studentData.visa_type || '';
+            document.getElementById('editSkills').value = '';
+            document.getElementById('editLinkedin').value = studentData.linkedin_url || '';
+            document.getElementById('editGithub').value = studentData.github_url || '';
+            document.getElementById('editLooking').checked = studentData.is_actively_looking || false;
+            
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const submitBtn = e.target.querySelector('.save-btn');
+            
+            submitBtn.innerHTML = 'Saving...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/student/update`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${getToken()}` },
+                    body: formData
+                });
                 
-                if (!skill) {
-                    const { data: newSkill, error: insertError } = await supabase
-                        .from('skills')
-                        .insert({ skill_name: skillName })
-                        .select();
-                    if (newSkill && newSkill.length > 0) {
-                        skill = newSkill[0];
-                    }
-                }
+                const result = await response.json();
                 
-                if (skill) {
-                    await supabase
-                        .from('student_skills')
-                        .insert({ student_id: student.id, skill_id: skill.id });
+                if (result.success) {
+                    closeEditModal();
+                    await loadDashboard();
+                    alert('✅ Profile updated successfully!');
+                } else {
+                    alert('❌ Error: ' + (result.error || 'Update failed'));
                 }
-            }
-        }
-        
-        res.json({ success: true, student, message: 'Profile updated successfully' });
-        
-    } catch (error) {
-        console.error('Update profile error:', error);
-        res.status(500).json({ error: 'Failed to update profile: ' + error.message });
-    }
-});
-
-// ========== RECRUITER ROUTES ==========
-
-// Search active students
-app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role !== 'recruiter') {
-            return res.status(403).json({ error: 'Access denied' });
-        }
-        
-        const { state, visa } = req.body;
-        
-        let query = supabase
-            .from('students')
-            .select('*')
-            .eq('profile_status', 'active')
-            .eq('is_actively_looking', true);
-        
-        if (state && state !== '') query = query.eq('current_state', state);
-        if (visa && visa !== '') query = query.eq('visa_type', visa);
-        
-        const { data: students, error } = await query;
-        
-        if (error) throw error;
-        
-        // Hide contact info
-        const hiddenStudents = students?.map(s => ({
-            id: s.id,
-            full_name: s.full_name,
-            current_city: s.current_city,
-            current_state: s.current_state,
-            university_name: s.university_name,
-            visa_type: s.visa_type,
-            graduation_date: s.graduation_date,
-            years_of_experience: s.years_of_experience
-        })) || [];
-        
-        res.json({
-            success: true,
-            count: hiddenStudents.length,
-            students: hiddenStudents
-        });
-        
-    } catch (error) {
-        console.error('Search error:', error);
-        res.status(500).json({ error: 'Search failed' });
-    }
-});
-
-// Get recruiter stats
-app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role !== 'recruiter') {
-            return res.status(403).json({ error: 'Access denied' });
-        }
-        
-        const { data: recruiter, error: recruiterError } = await supabase
-            .from('recruiters')
-            .select('*')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        
-        if (recruiterError) {
-            console.error('Recruiter fetch error:', recruiterError);
-        }
-        
-        const { count: totalStudents } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .eq('profile_status', 'active');
-        
-        const { count: optStudents } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .in('visa_type', ['OPT_1st_year', 'OPT_2nd_year', 'STEM_OPT'])
-            .eq('profile_status', 'active');
-        
-        res.json({
-            success: true,
-            totalStudents: totalStudents || 0,
-            optStudents: optStudents || 0,
-            recruiter: {
-                credits: recruiter?.credits_remaining || 10,
-                tier: recruiter?.subscription_tier || 'free',
-                total_searches: recruiter?.total_searches || 0,
-                total_contacts: recruiter?.total_contacts || 0,
-                total_hires: recruiter?.total_hires || 0
+            } catch (error) {
+                console.error('Update error:', error);
+                alert('❌ Network error: ' + error.message);
+            } finally {
+                submitBtn.innerHTML = 'Save Changes';
+                submitBtn.disabled = false;
             }
         });
-        
-    } catch (error) {
-        console.error('Stats error:', error);
-        res.status(500).json({ error: 'Failed to get stats' });
-    }
-});
 
-// View full student profile
-app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role !== 'recruiter') {
-            return res.status(403).json({ error: 'Access denied' });
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login.html';
         }
-        
-        const { studentId } = req.params;
-        
-        const { data: student, error } = await supabase
-            .from('students')
-            .select('*')
-            .eq('id', studentId)
-            .eq('profile_status', 'active')
-            .single();
-        
-        if (error || !student) {
-            return res.status(404).json({ error: 'Student not found' });
-        }
-        
-        // Get skills
-        const { data: skills } = await supabase
-            .from('student_skills')
-            .select('skills(*)')
-            .eq('student_id', student.id);
-        
-        // Log view
-        const { data: recruiter } = await supabase
-            .from('recruiters')
-            .select('id')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        
-        if (recruiter) {
-            await supabase
-                .from('view_logs')
-                .insert({ recruiter_id: recruiter.id, student_id: student.id });
-        }
-        
-        res.json({
-            success: true,
-            student: {
-                ...student,
-                skills: skills?.map(s => s.skills?.skill_name) || []
-            }
-        });
-        
-    } catch (error) {
-        console.error('View profile error:', error);
-        res.status(500).json({ error: 'Failed to load student' });
-    }
-});
 
-// Contact student (costs credit)
-app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role !== 'recruiter') {
-            return res.status(403).json({ error: 'Access denied' });
-        }
-        
-        const { student_id, message } = req.body;
-        
-        const { data: recruiter } = await supabase
-            .from('recruiters')
-            .select('id, credits_remaining, company_name')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        
-        if (!recruiter || recruiter.credits_remaining <= 0) {
-            return res.status(402).json({ error: 'Insufficient credits. Please upgrade.' });
-        }
-        
-        const { data: student } = await supabase
-            .from('students')
-            .select('email, full_name')
-            .eq('id', student_id)
-            .single();
-        
-        // Deduct credit
-        await supabase
-            .from('recruiters')
-            .update({ 
-                credits_remaining: recruiter.credits_remaining - 1,
-                total_contacts: supabase.raw('total_contacts + 1')
-            })
-            .eq('id', recruiter.id);
-        
-        // Log contact
-        await supabase
-            .from('contact_logs')
-            .insert({ recruiter_id: recruiter.id, student_id: student_id });
-        
-        console.log(`📧 Email to ${student?.email || 'unknown'}: ${message}`);
-        
-        res.json({ 
-            success: true, 
-            message: 'Student contacted successfully',
-            credits_remaining: recruiter.credits_remaining - 1
-        });
-        
-    } catch (error) {
-        console.error('Contact error:', error);
-        res.status(500).json({ error: 'Failed to contact student' });
-    }
-});
-
-// Mark student as hired
-app.post('/api/recruiter/mark-hired', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role !== 'recruiter') {
-            return res.status(403).json({ error: 'Access denied' });
-        }
-        
-        const { student_id } = req.body;
-        
-        const { data: recruiter } = await supabase
-            .from('recruiters')
-            .select('id')
-            .eq('auth_user_id', req.user.id)
-            .single();
-        
-        await supabase
-            .from('students')
-            .update({ 
-                profile_status: 'hired',
-                hired_by_recruiter_id: recruiter?.id,
-                hired_at: new Date().toISOString(),
-                is_actively_looking: false
-            })
-            .eq('id', student_id);
-        
-        if (recruiter) {
-            await supabase
-                .from('recruiters')
-                .update({ total_hires: supabase.raw('total_hires + 1') })
-                .eq('id', recruiter.id);
-        }
-        
-        res.json({ success: true, message: 'Student marked as hired' });
-        
-    } catch (error) {
-        console.error('Mark hired error:', error);
-        res.status(500).json({ error: 'Failed to mark as hired' });
-    }
-});
-
-// Health check
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
-});
-
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+        loadDashboard();
+    </script>
+</body>
+</html>
