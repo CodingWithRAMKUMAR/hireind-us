@@ -7,12 +7,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
             background: #0A0F1E;
             color: white;
         }
+
         .navbar {
             background: rgba(10, 14, 30, 0.95);
             backdrop-filter: blur(20px);
@@ -24,11 +30,13 @@
             flex-wrap: wrap;
             gap: 1rem;
         }
+
         .logo {
             display: flex;
             align-items: center;
             gap: 0.75rem;
         }
+
         .logo i {
             font-size: 1.5rem;
             background: linear-gradient(135deg, #667eea, #764ba2);
@@ -36,11 +44,13 @@
             background-clip: text;
             color: transparent;
         }
+
         .logo span {
             font-size: 1.2rem;
             font-weight: 700;
             color: white;
         }
+
         .logout-btn {
             background: rgba(245, 101, 101, 0.2);
             border: 1px solid #f56565;
@@ -48,29 +58,40 @@
             border-radius: 0.5rem;
             color: #f56565;
             cursor: pointer;
+            transition: all 0.2s;
         }
+
+        .logout-btn:hover {
+            background: #f56565;
+            color: white;
+        }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 2rem;
         }
+
         .welcome-section {
             background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15));
             border-radius: 1.5rem;
             padding: 2rem;
             margin-bottom: 2rem;
         }
+
         .welcome-title {
             font-size: 1.8rem;
             font-weight: 700;
             margin-bottom: 0.5rem;
         }
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
+
         .stat-card {
             background: rgba(15, 20, 40, 0.6);
             backdrop-filter: blur(10px);
@@ -79,11 +100,13 @@
             padding: 1.5rem;
             text-align: center;
         }
+
         .stat-value {
             font-size: 2rem;
             font-weight: 800;
             color: #667eea;
         }
+
         .profile-card {
             background: rgba(15, 20, 40, 0.6);
             backdrop-filter: blur(10px);
@@ -91,6 +114,7 @@
             border-radius: 1rem;
             padding: 2rem;
         }
+
         .section-title {
             font-size: 1.3rem;
             font-weight: 600;
@@ -99,43 +123,58 @@
             align-items: center;
             gap: 0.5rem;
         }
+
         .profile-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
         }
+
         .profile-field {
             margin-bottom: 1rem;
         }
+
         .profile-label {
             font-size: 0.75rem;
             color: rgba(255,255,255,0.5);
             margin-bottom: 0.25rem;
         }
+
         .profile-value {
             font-size: 0.95rem;
             color: white;
+            word-break: break-word;
         }
+
         .skills-container {
             display: flex;
             flex-wrap: wrap;
             gap: 0.5rem;
             margin-top: 0.5rem;
         }
+
         .skill-tag {
             background: linear-gradient(135deg, #667eea, #764ba2);
             padding: 0.25rem 0.75rem;
             border-radius: 2rem;
             font-size: 0.75rem;
         }
+
         .edit-btn {
             background: linear-gradient(135deg, #667eea, #764ba2);
             border: none;
             padding: 0.5rem 1.5rem;
             border-radius: 0.5rem;
             color: white;
+            font-weight: 600;
             cursor: pointer;
+            transition: all 0.2s;
         }
+
+        .edit-btn:hover {
+            transform: translateY(-2px);
+        }
+
         .modal {
             display: none;
             position: fixed;
@@ -143,13 +182,17 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.9);
             backdrop-filter: blur(8px);
             z-index: 2000;
             justify-content: center;
             align-items: center;
         }
-        .modal.active { display: flex; }
+
+        .modal.active {
+            display: flex;
+        }
+
         .modal-content {
             background: #1a1f3a;
             border-radius: 1rem;
@@ -159,12 +202,16 @@
             overflow-y: auto;
             padding: 2rem;
         }
+
         .modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.3);
         }
+
         .modal-close {
             background: none;
             border: none;
@@ -172,15 +219,18 @@
             color: white;
             cursor: pointer;
         }
+
         .form-group {
             margin-bottom: 1rem;
         }
+
         .form-group label {
             display: block;
             margin-bottom: 0.5rem;
             font-size: 0.85rem;
             color: rgba(255,255,255,0.7);
         }
+
         .form-group input, .form-group select {
             width: 100%;
             padding: 0.75rem;
@@ -189,11 +239,12 @@
             border-radius: 0.5rem;
             color: white;
         }
-        /* FIXED: Dark dropdowns */
+
         .form-group select option {
             background: #0A0F1E;
             color: white;
         }
+
         .save-btn {
             width: 100%;
             padding: 0.75rem;
@@ -201,29 +252,46 @@
             border: none;
             border-radius: 0.5rem;
             color: white;
+            font-weight: 600;
             cursor: pointer;
             margin-top: 1rem;
         }
-        .loading { text-align: center; padding: 2rem; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+        }
+
         .spinner {
             width: 40px;
             height: 40px;
-            border: 3px solid rgba(102,126,234,0.2);
+            border: 3px solid rgba(102, 126, 234, 0.2);
             border-top-color: #667eea;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 1rem;
         }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         @media (max-width: 768px) {
-            .container { padding: 1rem; }
-            .profile-grid { grid-template-columns: 1fr; }
+            .container {
+                padding: 1rem;
+            }
+            .profile-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
     <nav class="navbar">
-        <div class="logo"><i class="fas fa-user-graduate"></i><span>HireIND_US | Student Portal</span></div>
+        <div class="logo">
+            <i class="fas fa-user-graduate"></i>
+            <span>HireIND_US | Student Portal</span>
+        </div>
         <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
     </nav>
 
@@ -234,38 +302,77 @@
         </div>
 
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-value" id="profileViews">-</div><div>Profile Views</div></div>
-            <div class="stat-card"><div class="stat-value" id="recruiterContacts">-</div><div>Recruiter Contacts</div></div>
-            <div class="stat-card"><div class="stat-value" id="profileStatus">-</div><div>Profile Status</div></div>
+            <div class="stat-card">
+                <div class="stat-value" id="profileViews">-</div>
+                <div>Profile Views</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="recruiterContacts">-</div>
+                <div>Recruiter Contacts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="profileStatus">-</div>
+                <div>Profile Status</div>
+            </div>
         </div>
 
         <div class="profile-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <div class="section-title"><i class="fas fa-id-card"></i><span>My Profile</span></div>
+                <div class="section-title">
+                    <i class="fas fa-id-card"></i>
+                    <span>My Profile</span>
+                </div>
                 <button class="edit-btn" onclick="openEditModal()"><i class="fas fa-edit"></i> Edit Profile</button>
             </div>
-            <div id="profileContent"><div class="loading"><div class="spinner"></div><p>Loading...</p></div></div>
+            <div id="profileContent">
+                <div class="loading"><div class="spinner"></div><p>Loading profile...</p></div>
+            </div>
         </div>
     </div>
 
     <div id="editModal" class="modal">
         <div class="modal-content">
-            <div class="modal-header"><h3>Edit Profile</h3><button class="modal-close" onclick="closeEditModal()">&times;</button></div>
+            <div class="modal-header">
+                <h3>Edit Profile</h3>
+                <button class="modal-close" onclick="closeEditModal()">&times;</button>
+            </div>
             <form id="editProfileForm" enctype="multipart/form-data">
-                <div class="form-group"><label>Full Name</label><input type="text" name="full_name" id="editFullName"></div>
-                <div class="form-group"><label>Phone</label><input type="tel" name="phone" id="editPhone"></div>
-                <div class="form-group"><label>City</label><input type="text" name="current_city" id="editCity"></div>
-                <div class="form-group"><label>State</label>
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" name="full_name" id="editFullName">
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" name="phone" id="editPhone">
+                </div>
+                <div class="form-group">
+                    <label>Current City</label>
+                    <input type="text" name="current_city" id="editCity">
+                </div>
+                <div class="form-group">
+                    <label>State</label>
                     <select name="current_state" id="editState">
                         <option value="">Select State</option>
-                        <option value="CA">California</option><option value="TX">Texas</option>
-                        <option value="NY">New York</option><option value="MA">Massachusetts</option>
-                        <option value="WA">Washington</option><option value="IL">Illinois</option>
+                        <option value="CA">California</option>
+                        <option value="TX">Texas</option>
+                        <option value="NY">New York</option>
+                        <option value="MA">Massachusetts</option>
+                        <option value="WA">Washington</option>
+                        <option value="IL">Illinois</option>
+                        <option value="GA">Georgia</option>
+                        <option value="NC">North Carolina</option>
                     </select>
                 </div>
-                <div class="form-group"><label>University</label><input type="text" name="university_name" id="editUniversity"></div>
-                <div class="form-group"><label>Graduation Date</label><input type="date" name="graduation_date" id="editGraduation"></div>
-                <div class="form-group"><label>Visa Status</label>
+                <div class="form-group">
+                    <label>University</label>
+                    <input type="text" name="university_name" id="editUniversity">
+                </div>
+                <div class="form-group">
+                    <label>Graduation Date</label>
+                    <input type="date" name="graduation_date" id="editGraduation">
+                </div>
+                <div class="form-group">
+                    <label>Visa Status</label>
                     <select name="visa_type" id="editVisa">
                         <option value="OPT_1st_year">OPT (1st year)</option>
                         <option value="OPT_2nd_year">OPT (2nd year)</option>
@@ -273,11 +380,28 @@
                         <option value="H1B">H1B</option>
                     </select>
                 </div>
-                <div class="form-group"><label>Skills (comma separated)</label><input type="text" name="skills" id="editSkills" placeholder="Python, React, AWS"></div>
-                <div class="form-group"><label>LinkedIn URL</label><input type="url" name="linkedin_url" id="editLinkedin"></div>
-                <div class="form-group"><label>GitHub URL</label><input type="url" name="github_url" id="editGithub"></div>
-                <div class="form-group"><label>Upload Resume (PDF)</label><input type="file" name="resume" accept=".pdf"></div>
-                <div class="form-group"><label><input type="checkbox" name="is_actively_looking" id="editLooking"> I am actively looking for opportunities</label></div>
+                <div class="form-group">
+                    <label>Skills (comma separated)</label>
+                    <input type="text" name="skills" id="editSkills" placeholder="Python, React, AWS">
+                </div>
+                <div class="form-group">
+                    <label>LinkedIn URL</label>
+                    <input type="url" name="linkedin_url" id="editLinkedin">
+                </div>
+                <div class="form-group">
+                    <label>GitHub URL</label>
+                    <input type="url" name="github_url" id="editGithub">
+                </div>
+                <div class="form-group">
+                    <label>Upload Resume (PDF)</label>
+                    <input type="file" name="resume" accept=".pdf">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="is_actively_looking" id="editLooking">
+                        I am actively looking for opportunities
+                    </label>
+                </div>
                 <button type="submit" class="save-btn">Save Changes</button>
             </form>
         </div>
@@ -287,20 +411,29 @@
         const API_URL = '';
         let studentData = null;
 
-        function getToken() { return localStorage.getItem('token'); }
-        
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
         function checkAuth() {
-            if (!getToken()) { window.location.href = '/login.html'; return false; }
+            const token = getToken();
+            if (!token) {
+                window.location.href = '/login.html';
+                return false;
+            }
             return true;
         }
 
         async function loadDashboard() {
             if (!checkAuth()) return;
+            
             try {
                 const response = await fetch(`${API_URL}/api/student/dashboard`, {
                     headers: { 'Authorization': `Bearer ${getToken()}` }
                 });
+                
                 const result = await response.json();
+                
                 if (result.success) {
                     studentData = result.student;
                     document.getElementById('welcomeName').innerHTML = `Welcome, ${result.student.full_name || 'Student'}!`;
@@ -308,37 +441,79 @@
                     document.getElementById('recruiterContacts').innerText = result.stats?.recruiter_contacts || 0;
                     document.getElementById('profileStatus').innerHTML = result.student.profile_complete ? '✅ Complete' : '⚠️ Incomplete';
                     displayProfile(result);
-                } else if (result.error === 'Access token required') { logout(); }
-            } catch(e) { console.error(e); }
+                } else if (result.error === 'Access token required') {
+                    logout();
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
         }
 
         function displayProfile(data) {
             const student = data.student;
             const skills = data.skills || [];
-            const html = `
+            
+            const profileHtml = `
                 <div class="profile-grid">
                     <div>
-                        <div class="profile-field"><div class="profile-label">Full Name</div><div class="profile-value">${student.full_name || 'Not provided'}</div></div>
-                        <div class="profile-field"><div class="profile-label">Email</div><div class="profile-value">${student.email || 'Not provided'}</div></div>
-                        <div class="profile-field"><div class="profile-label">Phone</div><div class="profile-value">${student.phone || 'Not provided'}</div></div>
-                        <div class="profile-field"><div class="profile-label">Location</div><div class="profile-value">${student.current_city || 'N/A'}, ${student.current_state || 'N/A'}</div></div>
+                        <div class="profile-field">
+                            <div class="profile-label">Full Name</div>
+                            <div class="profile-value">${student.full_name || 'Not provided'}</div>
+                        </div>
+                        <div class="profile-field">
+                            <div class="profile-label">Email</div>
+                            <div class="profile-value">${student.email || 'Not provided'}</div>
+                        </div>
+                        <div class="profile-field">
+                            <div class="profile-label">Phone</div>
+                            <div class="profile-value">${student.phone || 'Not provided'}</div>
+                        </div>
+                        <div class="profile-field">
+                            <div class="profile-label">Location</div>
+                            <div class="profile-value">${student.current_city || 'N/A'}, ${student.current_state || 'N/A'}</div>
+                        </div>
                     </div>
                     <div>
-                        <div class="profile-field"><div class="profile-label">University</div><div class="profile-value">${student.university_name || 'Not provided'}</div></div>
-                        <div class="profile-field"><div class="profile-label">Graduation</div><div class="profile-value">${student.graduation_date || 'Not provided'}</div></div>
-                        <div class="profile-field"><div class="profile-label">Visa Status</div><div class="profile-value">${student.visa_type || 'Not provided'}</div></div>
-                        <div class="profile-field"><div class="profile-label">Looking for jobs?</div><div class="profile-value">${student.is_actively_looking ? '✅ Yes' : '❌ No'}</div></div>
+                        <div class="profile-field">
+                            <div class="profile-label">University</div>
+                            <div class="profile-value">${student.university_name || 'Not provided'}</div>
+                        </div>
+                        <div class="profile-field">
+                            <div class="profile-label">Graduation Date</div>
+                            <div class="profile-value">${student.graduation_date || 'Not provided'}</div>
+                        </div>
+                        <div class="profile-field">
+                            <div class="profile-label">Visa Status</div>
+                            <div class="profile-value">${student.visa_type || 'Not provided'}</div>
+                        </div>
+                        <div class="profile-field">
+                            <div class="profile-label">Looking for jobs?</div>
+                            <div class="profile-value">${student.is_actively_looking ? '✅ Yes' : '❌ No'}</div>
+                        </div>
                     </div>
                 </div>
-                <div class="profile-field"><div class="profile-label">Skills</div><div class="skills-container">${skills.map(s => `<span class="skill-tag">${s.skill_name}</span>`).join('') || '<span>No skills added</span>'}</div></div>
-                <div class="profile-field"><div class="profile-label">LinkedIn</div><div class="profile-value">${student.linkedin_url ? `<a href="${student.linkedin_url}" target="_blank" style="color:#667eea">${student.linkedin_url}</a>` : 'Not provided'}</div></div>
-                <div class="profile-field"><div class="profile-label">GitHub</div><div class="profile-value">${student.github_url ? `<a href="${student.github_url}" target="_blank" style="color:#667eea">${student.github_url}</a>` : 'Not provided'}</div></div>
+                <div class="profile-field">
+                    <div class="profile-label">Skills</div>
+                    <div class="skills-container">
+                        ${skills.map(s => `<span class="skill-tag">${s.skill_name}</span>`).join('') || '<span>No skills added</span>'}
+                    </div>
+                </div>
+                <div class="profile-field">
+                    <div class="profile-label">LinkedIn</div>
+                    <div class="profile-value">${student.linkedin_url ? `<a href="${student.linkedin_url}" target="_blank" style="color:#667eea">${student.linkedin_url}</a>` : 'Not provided'}</div>
+                </div>
+                <div class="profile-field">
+                    <div class="profile-label">GitHub</div>
+                    <div class="profile-value">${student.github_url ? `<a href="${student.github_url}" target="_blank" style="color:#667eea">${student.github_url}</a>` : 'Not provided'}</div>
+                </div>
             `;
-            document.getElementById('profileContent').innerHTML = html;
+            
+            document.getElementById('profileContent').innerHTML = profileHtml;
         }
 
         function openEditModal() {
             if (!studentData) return;
+            
             document.getElementById('editFullName').value = studentData.full_name || '';
             document.getElementById('editPhone').value = studentData.phone || '';
             document.getElementById('editCity').value = studentData.current_city || '';
@@ -346,30 +521,42 @@
             document.getElementById('editUniversity').value = studentData.university_name || '';
             document.getElementById('editGraduation').value = studentData.graduation_date || '';
             document.getElementById('editVisa').value = studentData.visa_type || '';
+            document.getElementById('editSkills').value = '';
             document.getElementById('editLinkedin').value = studentData.linkedin_url || '';
             document.getElementById('editGithub').value = studentData.github_url || '';
             document.getElementById('editLooking').checked = studentData.is_actively_looking || false;
+            
             document.getElementById('editModal').classList.add('active');
         }
 
-        function closeEditModal() { document.getElementById('editModal').classList.remove('active'); }
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
 
         document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
             const formData = new FormData(e.target);
+            
             try {
                 const response = await fetch(`${API_URL}/api/student/update`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${getToken()}` },
                     body: formData
                 });
+                
                 const result = await response.json();
+                
                 if (result.success) {
                     closeEditModal();
                     loadDashboard();
                     alert('Profile updated successfully!');
-                } else { alert('Error: ' + (result.error || 'Update failed')); }
-            } catch(e) { alert('Network error'); }
+                } else {
+                    alert('Error: ' + (result.error || 'Update failed'));
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
         });
 
         function logout() {
