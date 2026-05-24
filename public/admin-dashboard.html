@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - HireIND_US</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0A0F1E; color: white; }
+        .navbar {
+            background: rgba(10, 14, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .logo { display: flex; align-items: center; gap: 0.75rem; }
+        .logo i { font-size: 1.5rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .logo span { font-size: 1.2rem; font-weight: 700; color: white; }
+        .logout-btn { background: rgba(245, 101, 101, 0.2); border: 1px solid #f56565; padding: 0.5rem 1rem; border-radius: 0.5rem; color: #f56565; cursor: pointer; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        .card {
+            background: rgba(15, 20, 40, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .section-title { font-size: 1.3rem; font-weight: 600; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .upload-area {
+            border: 2px dashed rgba(102, 126, 234, 0.5);
+            border-radius: 1rem;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover { border-color: #667eea; background: rgba(102, 126, 234, 0.05); }
+        .upload-area i { font-size: 3rem; color: #667eea; margin-bottom: 1rem; }
+        .file-info { margin-top: 1rem; padding: 0.75rem; background: rgba(255,255,255,0.05); border-radius: 0.5rem; display: none; }
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: rgba(15, 20, 40, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .stat-number { font-size: 2rem; font-weight: 800; color: #667eea; }
+        .result-box {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            display: none;
+        }
+        .result-box.success { background: rgba(72, 187, 120, 0.2); border: 1px solid #48bb78; color: #48bb78; display: block; }
+        .result-box.error { background: rgba(245, 101, 101, 0.2); border: 1px solid #f56565; color: #f56565; display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        th { color: #667eea; }
+        .template-link { color: #667eea; text-decoration: none; margin-top: 1rem; display: inline-block; }
+        @media (max-width: 768px) { .container { padding: 1rem; } }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo"><i class="fas fa-shield-alt"></i><span>HireIND_US | Admin Portal</span></div>
+        <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </nav>
+
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-number" id="totalStudents">-</div><div>Total Students</div></div>
+            <div class="stat-card"><div class="stat-number" id="activeStudents">-</div><div>Active Students</div></div>
+            <div class="stat-card"><div class="stat-number" id="totalRecruiters">-</div><div>Total Recruiters</div></div>
+            <div class="stat-card"><div class="stat-number" id="totalHires">-</div><div>Total Hires</div></div>
+        </div>
+
+        <div class="card">
+            <div class="section-title"><i class="fas fa-upload"></i><span>Bulk Upload Students (CSV)</span></div>
+            <div class="upload-area" onclick="document.getElementById('csvFile').click()">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p>Click or drag CSV file here</p>
+                <small style="color: rgba(255,255,255,0.5);">Upload CSV file with student data</small>
+                <input type="file" id="csvFile" accept=".csv" style="display: none;" onchange="handleFileSelect(event)">
+            </div>
+            <div id="fileInfo" class="file-info"></div>
+            <button class="btn" id="uploadBtn" style="display: none;" onclick="uploadCSV()"><i class="fas fa-upload"></i> Upload to Database</button>
+            <div id="result" class="result-box"></div>
+            <a href="#" class="template-link" onclick="downloadTemplate()"><i class="fas fa-download"></i> Download CSV Template</a>
+        </div>
+
+        <div class="card">
+            <div class="section-title"><i class="fas fa-users"></i><span>Recent Students</span></div>
+            <div id="studentsList">
+                <div class="loading" style="text-align:center; padding:2rem;"><div class="spinner" style="width:30px;height:30px;"></div><p>Loading...</p></div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(102, 126, 234, 0.2);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 0.5rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+
+    <script>
+        const API_URL = '';
+        let selectedFile = null;
+
+        function getToken() { return localStorage.getItem('token'); }
+
+        function checkAuth() {
+            const token = getToken();
+            if (!token) { window.location.href = '/login.html'; return false; }
+            
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (user.role !== 'admin') {
+                alert('Admin access only');
+                window.location.href = '/login.html';
+                return false;
+            }
+            return true;
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/stats`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('totalStudents').innerText = result.stats?.totalStudents || 0;
+                    document.getElementById('activeStudents').innerText = result.stats?.activeStudents || 0;
+                    document.getElementById('totalRecruiters').innerText = result.stats?.totalRecruiters || 0;
+                    document.getElementById('totalHires').innerText = result.stats?.totalHires || 0;
+                }
+            } catch(e) { console.error('Stats error:', e); }
+        }
+
+        async function loadStudents() {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/students`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const result = await response.json();
+                if (result.success && result.students) {
+                    displayStudents(result.students.slice(0, 10));
+                }
+            } catch(e) { console.error('Students error:', e); }
+        }
+
+        function displayStudents(students) {
+            const container = document.getElementById('studentsList');
+            if (!students || students.length === 0) {
+                container.innerHTML = '<p style="text-align:center; padding:2rem;">No students found</p>';
+                return;
+            }
+            
+            let html = '<table><thead><tr><th>Name</th><th>Email</th><th>University</th><th>Visa</th><th>Status</th></tr></thead><tbody>';
+            students.forEach(s => {
+                html += `<tr>
+                    <td>${escapeHtml(s.full_name || 'N/A')}</td>
+                    <td>${escapeHtml(s.email || 'N/A')}</td>
+                    <td>${escapeHtml(s.university_name || 'N/A')}</td>
+                    <td>${s.visa_type || 'N/A'}</td>
+                    <td>${s.profile_status === 'active' ? '✅ Active' : '🔴 Hired'}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function handleFileSelect(event) {
+            selectedFile = event.target.files[0];
+            const fileInfo = document.getElementById('fileInfo');
+            const uploadBtn = document.getElementById('uploadBtn');
+            
+            if (selectedFile) {
+                fileInfo.innerHTML = `<i class="fas fa-file-csv"></i> Selected: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(2)} KB)`;
+                fileInfo.style.display = 'block';
+                uploadBtn.style.display = 'block';
+            } else {
+                fileInfo.style.display = 'none';
+                uploadBtn.style.display = 'none';
+            }
+        }
+
+        async function uploadCSV() {
+            if (!selectedFile) {
+                alert('Please select a CSV file first');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('csv', selectedFile);
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'result-box';
+            resultDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading and processing...';
+            resultDiv.style.display = 'block';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/admin/bulk-upload`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${getToken()}` },
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.className = 'result-box success';
+                    resultDiv.innerHTML = `<i class="fas fa-check-circle"></i> Upload complete!<br>
+                        Total records: ${result.total}<br>
+                        Added: ${result.added}<br>
+                        Duplicates skipped: ${result.duplicates || 0}`;
+                    
+                    // Reset file input
+                    document.getElementById('csvFile').value = '';
+                    document.getElementById('fileInfo').style.display = 'none';
+                    document.getElementById('uploadBtn').style.display = 'none';
+                    selectedFile = null;
+                    
+                    // Refresh data
+                    loadStats();
+                    loadStudents();
+                } else {
+                    resultDiv.className = 'result-box error';
+                    resultDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Error: ${result.error || 'Upload failed'}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result-box error';
+                resultDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Network error: ${error.message}`;
+            }
+        }
+
+        function downloadTemplate() {
+            const template = `full_name,email,city,state,university,graduation_date,visa_type
+Raj Patel,raj@example.com,San Francisco,CA,Stanford University,2025-05-15,OPT_1st_year
+Priya Sharma,priya@example.com,New York,NY,Columbia University,2025-06-01,STEM_OPT
+Amit Kumar,amit@example.com,Austin,TX,University of Texas,2025-08-20,H1B
+Neha Gupta,neha@example.com,Seattle,WA,University of Washington,2025-09-01,OPT_2nd_year
+Vikram Singh,vikram@example.com,Boston,MA,Northeastern University,2025-12-15,STEM_OPT`;
+            
+            const blob = new Blob([template], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'students_template.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login.html';
+        }
+
+        if (checkAuth()) {
+            loadStats();
+            loadStudents();
+        }
+    </script>
+</body>
+</html>
