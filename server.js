@@ -404,7 +404,6 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
     }
 });
 
-// Upload additional resume
 app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
         if (req.user.role !== 'student') {
@@ -612,7 +611,7 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
 app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
-            return res.status(403).json({ error: 'Access denied - Not a recruiter' });
+            return res.status(403).json({ error: 'Access denied' });
         }
         
         const { student_id, message } = req.body;
@@ -632,16 +631,16 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
         }
         
         if (!recruiter || recruiter.credits_remaining <= 0) {
-            return res.status(402).json({ error: 'Insufficient credits. Please upgrade your plan.' });
+            return res.status(402).json({ error: 'Insufficient credits' });
         }
         
-        const { data: student, error: studentError } = await supabase
+        const { data: student } = await supabase
             .from('students')
             .select('email, full_name, auth_user_id')
             .eq('id', student_id)
             .single();
         
-        if (studentError || !student) {
+        if (!student) {
             return res.status(404).json({ error: 'Student not found' });
         }
         
@@ -658,8 +657,7 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
             .insert({ 
                 recruiter_id: recruiter.id, 
                 student_id: student_id,
-                message: message,
-                contacted_at: new Date().toISOString()
+                message: message
             });
         
         await supabase
@@ -673,13 +671,13 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
         
         res.json({ 
             success: true, 
-            message: 'Student contacted successfully!',
+            message: 'Student contacted successfully',
             credits_remaining: recruiter.credits_remaining - 1
         });
         
     } catch (error) {
         console.error('Contact error:', error);
-        res.status(500).json({ error: 'Failed to contact student: ' + error.message });
+        res.status(500).json({ error: 'Failed to contact student' });
     }
 });
 
@@ -764,10 +762,10 @@ app.post('/api/recruiter/schedule-interview', authenticateToken, async (req, res
                 user_id: student.auth_user_id,
                 type: 'interview',
                 title: 'Interview Scheduled',
-                message: `An interview has been scheduled for ${new Date(scheduled_at).toLocaleString()}.`
+                message: `Interview scheduled for ${new Date(scheduled_at).toLocaleString()}`
             });
         
-        res.json({ success: true, interview, message: 'Interview scheduled successfully' });
+        res.json({ success: true, interview });
         
     } catch (error) {
         console.error('Schedule interview error:', error);
@@ -823,9 +821,7 @@ app.post('/api/admin/bulk-upload', authenticateToken, upload.single('csv'), asyn
                         .select()
                         .single();
                     
-                    if (authError) {
-                        continue;
-                    }
+                    if (authError) continue;
                     
                     await supabase
                         .from('students')
@@ -861,6 +857,9 @@ app.post('/api/admin/bulk-upload', authenticateToken, upload.single('csv'), asyn
     }
 });
 
+// ========== ADD THESE MISSING ADMIN ROUTES ==========
+
+// Admin Stats - GET
 app.get('/api/admin/stats', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'admin') {
@@ -901,6 +900,7 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
     }
 });
 
+// Admin Get All Students - GET
 app.get('/api/admin/students', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'admin') {
@@ -922,6 +922,8 @@ app.get('/api/admin/students', authenticateToken, async (req, res) => {
     }
 });
 
+// ========== NOTIFICATION ROUTES ==========
+
 app.get('/api/notifications', authenticateToken, async (req, res) => {
     try {
         const { data: notifications } = await supabase
@@ -937,6 +939,8 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to get notifications' });
     }
 });
+
+// ========== DOWNLOAD RESUME ==========
 
 app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) => {
     try {
@@ -959,6 +963,7 @@ app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) =>
     }
 });
 
+// Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
