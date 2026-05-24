@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HireIND_US - Login</title>
+    <title>HireIND_US - Login or Register</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -26,7 +26,6 @@
         .container {
             max-width: 1200px;
             width: 100%;
-            margin: 0 auto;
         }
 
         .glass-card {
@@ -81,6 +80,28 @@
         .hero-text {
             color: rgba(255,255,255,0.6);
             line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .stats {
+            display: flex;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.5);
         }
 
         .form-side {
@@ -138,45 +159,37 @@
             font-weight: 500;
         }
 
-        /* ========== FIXED DROPDOWN STYLES - VISIBLE TEXT ========== */
         input, select {
             width: 100%;
             padding: 0.9rem 1rem;
-            background-color: #1a1f3a !important;
+            background-color: #1a1f3a;
             border: 1.5px solid rgba(102, 126, 234, 0.3);
             border-radius: 1rem;
-            color: #ffffff !important;
+            color: white;
             font-size: 0.9rem;
             transition: all 0.3s;
         }
 
         select {
-            background-color: #1a1f3a !important;
-            color: #ffffff !important;
+            background-color: #1a1f3a;
+            color: white;
             cursor: pointer;
         }
 
         select option {
-            background-color: #0A0F1E !important;
-            color: #ffffff !important;
+            background-color: #0A0F1E;
+            color: white;
             padding: 10px;
         }
 
         input:focus, select:focus {
             outline: none;
             border-color: #667eea;
-            background-color: #1a1f3a !important;
+            background-color: #1a1f3a;
         }
 
         input::placeholder {
             color: rgba(255,255,255,0.3);
-        }
-
-        /* Fix for autofill */
-        input:-webkit-autofill,
-        input:-webkit-autofill:focus {
-            -webkit-box-shadow: 0 0 0 1000px #1a1f3a inset !important;
-            -webkit-text-fill-color: #ffffff !important;
         }
 
         .btn {
@@ -266,6 +279,9 @@
             .role-selector {
                 flex-direction: column;
             }
+            .stats {
+                justify-content: center;
+            }
         }
     </style>
 </head>
@@ -279,6 +295,20 @@
                 </div>
                 <h1 class="hero-title">Bridge the Gap<br>Between Talent & Opportunity</h1>
                 <p class="hero-text">Connect with top US companies hiring Indian talent. Your dream job is just a click away.</p>
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-number">5000+</div>
+                        <div class="stat-label">Active Students</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">200+</div>
+                        <div class="stat-label">Partner Companies</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">92%</div>
+                        <div class="stat-label">Placement Rate</div>
+                    </div>
+                </div>
             </div>
             <div class="form-side">
                 <div class="tabs">
@@ -289,7 +319,7 @@
                 <div id="loginForm" class="form active">
                     <form onsubmit="handleLogin(event)">
                         <div class="form-group">
-                            <label>Email</label>
+                            <label>Email Address</label>
                             <input type="email" id="loginEmail" placeholder="you@example.com" required>
                         </div>
                         <div class="form-group">
@@ -319,7 +349,7 @@
                             <input type="text" id="regName" placeholder="John Doe" required>
                         </div>
                         <div class="form-group">
-                            <label>Email</label>
+                            <label>Email Address</label>
                             <input type="email" id="regEmail" placeholder="you@example.com" required>
                         </div>
                         <div class="form-group">
