@@ -28,14 +28,14 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// File upload
+// File upload configuration
 const storage = multer.diskStorage({
     destination: './uploads/',
     filename: (req, file, cb) => {
         cb(null, Date.now() + '-' + file.originalname);
     }
 });
-const upload = multer({ storage: storage });
+const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
 
@@ -73,12 +73,10 @@ function generateToken(userId) {
 
 // ========== AUTH ROUTES ==========
 
-// Register
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { email, password, full_name, role } = req.body;
         
-        // Check if user exists
         const { data: existing } = await supabase
             .from('auth_users')
             .select('email')
@@ -91,7 +89,6 @@ app.post('/api/auth/register', async (req, res) => {
         
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        // Create auth user
         const { data: authUser, error: authError } = await supabase
             .from('auth_users')
             .insert({
@@ -106,9 +103,8 @@ app.post('/api/auth/register', async (req, res) => {
         
         if (authError) throw authError;
         
-        // Create role-specific profile
         if (role === 'student') {
-            const { error: studentError } = await supabase
+            await supabase
                 .from('students')
                 .insert({ 
                     auth_user_id: authUser.id, 
@@ -116,24 +112,17 @@ app.post('/api/auth/register', async (req, res) => {
                     email,
                     profile_status: 'active',
                     is_actively_looking: true,
-                    profile_complete: false
+                    profile_complete: false,
+                    source: 'manual'
                 });
-            
-            if (studentError) {
-                console.error('Student insert error:', studentError);
-            }
         } else if (role === 'recruiter') {
-            const { error: recruiterError } = await supabase
+            await supabase
                 .from('recruiters')
                 .insert({ 
                     auth_user_id: authUser.id, 
                     company_name: 'New Company',
                     credits_remaining: 10
                 });
-            
-            if (recruiterError) {
-                console.error('Recruiter insert error:', recruiterError);
-            }
         }
         
         const token = generateToken(authUser.id);
@@ -155,7 +144,6 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-// Login
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -194,31 +182,22 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// Get current user
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
     let profile = null;
     
     if (req.user.role === 'student') {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('students')
             .select('*')
             .eq('auth_user_id', req.user.id)
             .single();
-        
-        if (error && error.code !== 'PGRST116') {
-            console.error('Profile fetch error:', error);
-        }
         profile = data;
     } else if (req.user.role === 'recruiter') {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('recruiters')
             .select('*')
             .eq('auth_user_id', req.user.id)
             .single();
-        
-        if (error && error.code !== 'PGRST116') {
-            console.error('Profile fetch error:', error);
-        }
         profile = data;
     }
     
@@ -231,24 +210,19 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 
 // ========== STUDENT ROUTES ==========
 
-// Get student dashboard
 app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'student') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        // Get or create student profile
         let { data: student, error } = await supabase
             .from('students')
             .select('*')
             .eq('auth_user_id', req.user.id)
             .single();
         
-        // If student profile doesn't exist, create it
         if (error && error.code === 'PGRST116') {
-            console.log('Creating missing student profile for user:', req.user.id);
-            
             const { data: newStudent, error: insertError } = await supabase
                 .from('students')
                 .insert({
@@ -257,19 +231,17 @@ app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
                     email: req.user.email,
                     profile_status: 'active',
                     is_actively_looking: true,
-                    profile_complete: false
+                    profile_complete: false,
+                    source: 'manual'
                 })
                 .select()
                 .single();
             
             if (insertError) {
-                console.error('Failed to create student profile:', insertError);
                 return res.status(500).json({ error: 'Failed to create profile' });
             }
-            
             student = newStudent;
         } else if (error) {
-            console.error('Dashboard error:', error);
             return res.status(500).json({ error: 'Failed to load dashboard' });
         }
         
@@ -279,14 +251,22 @@ app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
             .select('skills(*)')
             .eq('student_id', student.id);
         
+        // Get resume versions
+        const { data: resumes } = await supabase
+            .from('resume_versions')
+            .select('*')
+            .eq('student_id', student.id)
+            .order('uploaded_at', { ascending: false });
+        
         res.json({
             success: true,
             student,
             stats: {
-                profile_views: 0,
+                profile_views: student.profile_view_count || 0,
                 recruiter_contacts: 0
             },
-            skills: skills?.map(s => s.skills) || []
+            skills: skills?.map(s => s.skills) || [],
+            resumes: resumes || []
         });
         
     } catch (error) {
@@ -295,26 +275,19 @@ app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
     }
 });
 
-// Update student profile
 app.post('/api/student/update', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
         if (req.user.role !== 'student') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        console.log('🔄 Updating profile for user:', req.user.id);
-        console.log('📝 Request body:', req.body);
-        
-        // First, ensure student record exists
         let { data: existingStudent, error: fetchError } = await supabase
             .from('students')
             .select('id')
             .eq('auth_user_id', req.user.id)
             .single();
         
-        // If student doesn't exist, create it
         if (fetchError && fetchError.code === 'PGRST116') {
-            console.log('Creating new student record...');
             const { data: newStudent, error: createError } = await supabase
                 .from('students')
                 .insert({
@@ -323,22 +296,21 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
                     email: req.user.email,
                     profile_status: 'active',
                     is_actively_looking: true,
-                    profile_complete: false
+                    profile_complete: false,
+                    source: 'manual'
                 })
                 .select()
                 .single();
             
             if (createError) {
-                console.error('Create error:', createError);
                 return res.status(500).json({ error: 'Failed to create profile: ' + createError.message });
             }
             existingStudent = newStudent;
         } else if (fetchError) {
-            console.error('Fetch error:', fetchError);
             return res.status(500).json({ error: 'Database error: ' + fetchError.message });
         }
         
-        // Handle resume upload
+        // Handle resume upload - store as new version
         let resume_url = null;
         if (req.file) {
             const fileName = Date.now() + '-' + req.file.originalname;
@@ -351,15 +323,27 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
                     .from('resumes')
                     .getPublicUrl(fileName);
                 resume_url = urlData.publicUrl;
-                console.log('📄 Resume uploaded:', resume_url);
-            } else {
-                console.error('Upload error:', uploadError);
+                
+                // Save to resume_versions
+                await supabase
+                    .from('resume_versions')
+                    .insert({
+                        student_id: existingStudent.id,
+                        resume_url: resume_url,
+                        file_name: req.file.originalname,
+                        is_active: true
+                    });
+                
+                // Deactivate previous resumes
+                await supabase
+                    .from('resume_versions')
+                    .update({ is_active: false })
+                    .eq('student_id', existingStudent.id)
+                    .neq('resume_url', resume_url);
             }
         }
         
-        // Build update data matching your exact schema
         const updateData = {};
-        
         if (req.body.full_name && req.body.full_name !== '') updateData.full_name = req.body.full_name;
         if (req.body.phone !== undefined) updateData.phone = req.body.phone;
         if (req.body.current_city !== undefined) updateData.current_city = req.body.current_city;
@@ -371,11 +355,9 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
         if (req.body.github_url !== undefined) updateData.github_url = req.body.github_url;
         if (resume_url) updateData.resume_url = resume_url;
         
-        // Handle checkbox - it comes as 'on' when checked
         updateData.is_actively_looking = (req.body.is_actively_looking === 'on' || req.body.is_actively_looking === true);
         updateData.profile_complete = true;
-        
-        console.log('📊 Updating with data:', updateData);
+        updateData.last_active = new Date().toISOString();
         
         const { data: student, error: updateError } = await supabase
             .from('students')
@@ -385,21 +367,18 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
             .single();
         
         if (updateError) {
-            console.error('Update error:', updateError);
             return res.status(500).json({ error: 'Failed to update: ' + updateError.message });
         }
         
-        // Update skills if provided
+        // Update skills
         if (req.body.skills && req.body.skills.trim() !== '') {
             const skillNames = req.body.skills.split(',').map(s => s.trim()).filter(s => s !== '');
             
-            // Delete existing skills
             await supabase
                 .from('student_skills')
                 .delete()
                 .eq('student_id', student.id);
             
-            // Add new skills
             for (const skillName of skillNames) {
                 let { data: skill } = await supabase
                     .from('skills')
@@ -423,25 +402,80 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
             }
         }
         
-        console.log('✅ Profile updated successfully for user:', req.user.id);
         res.json({ success: true, student, message: 'Profile updated successfully' });
         
     } catch (error) {
-        console.error('❌ Update profile error:', error);
+        console.error('Update profile error:', error);
         res.status(500).json({ error: 'Failed to update profile: ' + error.message });
+    }
+});
+
+// Upload additional resume
+app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'), async (req, res) => {
+    try {
+        if (req.user.role !== 'student') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { data: student } = await supabase
+            .from('students')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (!student) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        
+        const fileName = Date.now() + '-' + req.file.originalname;
+        const { error: uploadError } = await supabase.storage
+            .from('resumes')
+            .upload(fileName, req.file.buffer);
+        
+        if (uploadError) {
+            return res.status(500).json({ error: 'Upload failed: ' + uploadError.message });
+        }
+        
+        const { data: urlData } = supabase.storage
+            .from('resumes')
+            .getPublicUrl(fileName);
+        
+        const { data: resume, error: insertError } = await supabase
+            .from('resume_versions')
+            .insert({
+                student_id: student.id,
+                resume_url: urlData.publicUrl,
+                file_name: req.file.originalname,
+                is_active: false
+            })
+            .select()
+            .single();
+        
+        if (insertError) {
+            return res.status(500).json({ error: 'Failed to save resume record' });
+        }
+        
+        res.json({ success: true, resume, message: 'Resume uploaded successfully' });
+        
+    } catch (error) {
+        console.error('Upload resume error:', error);
+        res.status(500).json({ error: 'Failed to upload resume' });
     }
 });
 
 // ========== RECRUITER ROUTES ==========
 
-// Search active students
 app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        const { state, visa } = req.body;
+        const { state, visa, skill } = req.body;
         
         let query = supabase
             .from('students')
@@ -465,7 +499,7 @@ app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
             university_name: s.university_name,
             visa_type: s.visa_type,
             graduation_date: s.graduation_date,
-            years_of_experience: s.years_of_experience
+            profile_view_count: s.profile_view_count
         })) || [];
         
         res.json({
@@ -480,7 +514,6 @@ app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
     }
 });
 
-// Get recruiter stats
 app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
@@ -510,10 +543,8 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
             optStudents: optStudents || 0,
             recruiter: {
                 credits: recruiter?.credits_remaining || 10,
-                tier: recruiter?.subscription_tier || 'free',
-                total_searches: recruiter?.total_searches || 0,
-                total_contacts: recruiter?.total_contacts || 0,
-                total_hires: recruiter?.total_hires || 0
+                total_hires: recruiter?.total_hires || 0,
+                total_contacts: recruiter?.total_contacts || 0
             }
         });
         
@@ -523,7 +554,6 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     }
 });
 
-// View full student profile
 app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
@@ -549,6 +579,19 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
             .select('skills(*)')
             .eq('student_id', student.id);
         
+        // Get resumes
+        const { data: resumes } = await supabase
+            .from('resume_versions')
+            .select('*')
+            .eq('student_id', student.id)
+            .order('uploaded_at', { ascending: false });
+        
+        // Increment profile view count
+        await supabase
+            .from('students')
+            .update({ profile_view_count: (student.profile_view_count || 0) + 1 })
+            .eq('id', student.id);
+        
         // Log view
         const { data: recruiter } = await supabase
             .from('recruiters')
@@ -566,7 +609,8 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
             success: true,
             student: {
                 ...student,
-                skills: skills?.map(s => s.skills?.skill_name) || []
+                skills: skills?.map(s => s.skills?.skill_name) || [],
+                resumes: resumes || []
             }
         });
         
@@ -576,58 +620,104 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
     }
 });
 
-// Contact student
 app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
     try {
+        console.log('📞 Contact request received');
+        
         if (req.user.role !== 'recruiter') {
-            return res.status(403).json({ error: 'Access denied' });
+            return res.status(403).json({ error: 'Access denied - Not a recruiter' });
         }
         
         const { student_id, message } = req.body;
         
-        const { data: recruiter } = await supabase
+        if (!student_id) {
+            return res.status(400).json({ error: 'Student ID is required' });
+        }
+        
+        // Get recruiter details
+        const { data: recruiter, error: recruiterError } = await supabase
             .from('recruiters')
             .select('id, credits_remaining, company_name')
             .eq('auth_user_id', req.user.id)
             .single();
         
-        if (!recruiter || recruiter.credits_remaining <= 0) {
-            return res.status(402).json({ error: 'Insufficient credits' });
+        if (recruiterError) {
+            console.error('Recruiter fetch error:', recruiterError);
+            return res.status(500).json({ error: 'Recruiter profile not found' });
         }
         
-        const { data: student } = await supabase
+        // Check credits
+        if (!recruiter || recruiter.credits_remaining <= 0) {
+            return res.status(402).json({ error: 'Insufficient credits. Please upgrade your plan.' });
+        }
+        
+        // Get student details
+        const { data: student, error: studentError } = await supabase
             .from('students')
             .select('email, full_name')
             .eq('id', student_id)
             .single();
         
-        await supabase
+        if (studentError || !student) {
+            console.error('Student fetch error:', studentError);
+            return res.status(404).json({ error: 'Student not found' });
+        }
+        
+        // Deduct credit
+        const { error: updateError } = await supabase
             .from('recruiters')
             .update({ 
                 credits_remaining: recruiter.credits_remaining - 1,
-                total_contacts: supabase.raw('total_contacts + 1')
+                total_contacts: supabase.raw('COALESCE(total_contacts, 0) + 1')
             })
             .eq('id', recruiter.id);
         
-        await supabase
-            .from('contact_logs')
-            .insert({ recruiter_id: recruiter.id, student_id: student_id });
+        if (updateError) {
+            console.error('Credit deduction error:', updateError);
+        }
         
-        console.log(`📧 Contact email to ${student?.email}: ${message}`);
+        // Log contact
+        try {
+            await supabase
+                .from('contact_logs')
+                .insert({ 
+                    recruiter_id: recruiter.id, 
+                    student_id: student_id,
+                    message: message,
+                    contacted_at: new Date().toISOString()
+                });
+        } catch (logError) {
+            console.error('Log error:', logError);
+        }
+        
+        // Create notification for student
+        try {
+            await supabase
+                .from('notifications')
+                .insert({
+                    user_id: student.auth_user_id,
+                    type: 'contact',
+                    title: 'New Message from Recruiter',
+                    message: `${recruiter.company_name} is interested in your profile. Check your email for details.`
+                });
+        } catch (notifyError) {
+            console.error('Notification error:', notifyError);
+        }
+        
+        console.log(`📧 Contact to ${student.email} from ${recruiter.company_name}: ${message}`);
         
         res.json({ 
             success: true, 
-            message: 'Student contacted successfully',
+            message: 'Student contacted successfully! They will receive your message.',
             credits_remaining: recruiter.credits_remaining - 1
         });
         
     } catch (error) {
-        console.error('Contact error:', error);
-        res.status(500).json({ error: 'Failed to contact student' });
+        console.error('❌ Contact error:', error);
+        res.status(500).json({ error: 'Failed to contact student: ' + error.message });
     }
 });
 
-// Mark student as hired
 app.post('/api/recruiter/mark-hired', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
@@ -655,7 +745,7 @@ app.post('/api/recruiter/mark-hired', authenticateToken, async (req, res) => {
         if (recruiter) {
             await supabase
                 .from('recruiters')
-                .update({ total_hires: supabase.raw('total_hires + 1') })
+                .update({ total_hires: supabase.raw('COALESCE(total_hires, 0) + 1') })
                 .eq('id', recruiter.id);
         }
         
@@ -667,6 +757,244 @@ app.post('/api/recruiter/mark-hired', authenticateToken, async (req, res) => {
     }
 });
 
+// Schedule interview
+app.post('/api/recruiter/schedule-interview', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { student_id, scheduled_at, duration_minutes, interview_type, meeting_link } = req.body;
+        
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        const { data: student } = await supabase
+            .from('students')
+            .select('auth_user_id, email, full_name')
+            .eq('id', student_id)
+            .single();
+        
+        const { data: interview, error } = await supabase
+            .from('interviews')
+            .insert({
+                recruiter_id: recruiter.id,
+                student_id: student_id,
+                scheduled_at: scheduled_at,
+                duration_minutes: duration_minutes || 60,
+                interview_type: interview_type || 'video',
+                meeting_link: meeting_link,
+                status: 'scheduled'
+            })
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        // Create notification for student
+        await supabase
+            .from('notifications')
+            .insert({
+                user_id: student.auth_user_id,
+                type: 'interview',
+                title: 'Interview Scheduled',
+                message: `An interview has been scheduled for ${new Date(scheduled_at).toLocaleString()}. Meeting link: ${meeting_link}`
+            });
+        
+        res.json({ success: true, interview, message: 'Interview scheduled successfully' });
+        
+    } catch (error) {
+        console.error('Schedule interview error:', error);
+        res.status(500).json({ error: 'Failed to schedule interview' });
+    }
+});
+
+// ========== SCRAPER ROUTES ==========
+
+// CSV Bulk Upload
+app.post('/api/admin/bulk-upload', authenticateToken, upload.single('csv'), async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        
+        const csv = require('csv-parser');
+        const results = [];
+        let addedCount = 0;
+        let duplicateCount = 0;
+        
+        fs.createReadStream(req.file.path)
+            .pipe(csv())
+            .on('data', (data) => results.push(data))
+            .on('end', async () => {
+                for (const row of results) {
+                    // Check if student already exists
+                    const { data: existing } = await supabase
+                        .from('auth_users')
+                        .select('id')
+                        .eq('email', row.email)
+                        .single();
+                    
+                    if (existing) {
+                        duplicateCount++;
+                        continue;
+                    }
+                    
+                    // Create auth user with temporary password
+                    const tempPassword = Math.random().toString(36).slice(-8);
+                    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+                    
+                    const { data: authUser, error: authError } = await supabase
+                        .from('auth_users')
+                        .insert({
+                            email: row.email,
+                            password_hash: hashedPassword,
+                            full_name: row.full_name,
+                            role: 'student',
+                            is_verified: true
+                        })
+                        .select()
+                        .single();
+                    
+                    if (authError) {
+                        console.error('Auth insert error:', authError);
+                        continue;
+                    }
+                    
+                    // Create student profile
+                    await supabase
+                        .from('students')
+                        .insert({
+                            auth_user_id: authUser.id,
+                            full_name: row.full_name,
+                            email: row.email,
+                            current_city: row.city,
+                            current_state: row.state,
+                            university_name: row.university,
+                            graduation_date: row.graduation_date,
+                            visa_type: row.visa_type,
+                            profile_status: 'active',
+                            is_actively_looking: true,
+                            source: 'csv_upload',
+                            profile_complete: true
+                        });
+                    
+                    addedCount++;
+                }
+                
+                // Log scraping
+                await supabase
+                    .from('scraping_logs')
+                    .insert({
+                        source: 'csv_upload',
+                        records_processed: results.length,
+                        records_added: addedCount,
+                        records_updated: 0,
+                        status: 'completed',
+                        started_at: new Date().toISOString(),
+                        completed_at: new Date().toISOString()
+                    });
+                
+                res.json({
+                    success: true,
+                    total: results.length,
+                    added: addedCount,
+                    duplicates: duplicateCount
+                });
+            });
+        
+    } catch (error) {
+        console.error('Bulk upload error:', error);
+        res.status(500).json({ error: 'Bulk upload failed' });
+    }
+});
+
+// ========== NOTIFICATION ROUTES ==========
+
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+    try {
+        const { data: notifications } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        
+        res.json({ success: true, notifications: notifications || [] });
+        
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to get notifications' });
+    }
+});
+
+app.post('/api/notifications/mark-read', authenticateToken, async (req, res) => {
+    try {
+        const { notification_id } = req.body;
+        
+        await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .eq('id', notification_id)
+            .eq('user_id', req.user.id);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to mark notification' });
+    }
+});
+
+// ========== DOWNLOAD RESUME ==========
+
+app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) => {
+    try {
+        const { resumeId } = req.params;
+        
+        const { data: resume } = await supabase
+            .from('resume_versions')
+            .select('*')
+            .eq('id', resumeId)
+            .single();
+        
+        if (!resume) {
+            return res.status(404).json({ error: 'Resume not found' });
+        }
+        
+        // Check if recruiter has permission (has contacted or has credits)
+        if (req.user.role === 'recruiter') {
+            // Check if recruiter has contacted this student
+            const { data: recruiter } = await supabase
+                .from('recruiters')
+                .select('id')
+                .eq('auth_user_id', req.user.id)
+                .single();
+            
+            const { data: contact } = await supabase
+                .from('contact_logs')
+                .select('id')
+                .eq('recruiter_id', recruiter.id)
+                .eq('student_id', resume.student_id)
+                .single();
+            
+            if (!contact && req.user.role !== 'admin') {
+                return res.status(403).json({ error: 'You must contact the student first to download resume' });
+            }
+        }
+        
+        res.json({ success: true, download_url: resume.resume_url });
+        
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to get resume' });
+    }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
@@ -674,4 +1002,8 @@ app.get('/api/health', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`✅ Profile view counter: ENABLED`);
+    console.log(`✅ Multiple resumes: ENABLED`);
+    console.log(`✅ Interview scheduling: ENABLED`);
+    console.log(`✅ Notifications: ENABLED`);
 });
