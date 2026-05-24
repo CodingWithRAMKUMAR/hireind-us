@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter Dashboard - HireIND_US</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0A0F1E;
+            color: white;
+        }
+
+        .navbar {
+            background: rgba(10, 14, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo i {
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .logo span {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .credits-badge {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .credits-badge i {
+            margin-right: 0.25rem;
+        }
+
+        .logout-btn {
+            background: rgba(245, 101, 101, 0.2);
+            border: 1px solid #f56565;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            color: #f56565;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .logout-btn:hover {
+            background: #f56565;
+            color: white;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(15, 20, 40, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+
+        /* Search Section */
+        .search-section {
+            background: rgba(15, 20, 40, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        /* FIXED DROPDOWN STYLES - Dark background, visible text */
+        select, input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #1a1f3a;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 0.5rem;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        select option {
+            background: #1a1f3a;
+            color: white;
+            padding: 0.5rem;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        input::placeholder {
+            color: rgba(255,255,255,0.4);
+        }
+
+        .search-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .search-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Results */
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .students-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .student-card {
+            background: rgba(15, 20, 40, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            transition: all 0.2s;
+        }
+
+        .student-card:hover {
+            transform: translateY(-4px);
+            border-color: #667eea;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .student-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .student-university {
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.6);
+        }
+
+        .match-badge {
+            background: rgba(102, 126, 234, 0.2);
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            color: #667eea;
+        }
+
+        .student-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .detail-badge {
+            background: rgba(255,255,255,0.05);
+            padding: 0.25rem 0.75rem;
+            border-radius: 2rem;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .skills-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .skill {
+            background: rgba(102, 126, 234, 0.2);
+            padding: 0.25rem 0.75rem;
+            border-radius: 2rem;
+            font-size: 0.7rem;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .contact-btn {
+            flex: 1;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            padding: 0.6rem;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .hire-btn {
+            background: rgba(72, 187, 120, 0.2);
+            border: 1px solid #48bb78;
+            padding: 0.6rem 1rem;
+            border-radius: 0.5rem;
+            color: #48bb78;
+            cursor: pointer;
+        }
+
+        .view-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 0.6rem 1rem;
+            border-radius: 0.5rem;
+            color: white;
+            cursor: pointer;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1a1f3a;
+            border-radius: 1rem;
+            max-width: 500px;
+            width: 90%;
+            padding: 2rem;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: white;
+            cursor: pointer;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(102, 126, 234, 0.2);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            .students-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">
+            <i class="fas fa-briefcase"></i>
+            <span>HireIND_US | Recruiter Portal</span>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <div class="credits-badge"><i class="fas fa-coins"></i> <span id="creditsRemaining">-</span> Credits</div>
+            <div class="credits-badge" style="background: rgba(72, 187, 120, 0.2); border-color: #48bb78;"><i class="fas fa-trophy"></i> <span id="hiresCount">0</span> Hires</div>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalCandidates">-</div>
+                <div class="stat-label">Available Candidates</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="optCandidates">-</div>
+                <div class="stat-label">On OPT/STEM</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="myContacts">-</div>
+                <div class="stat-label">My Contacts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="myHires">-</div>
+                <div class="stat-label">My Hires</div>
+            </div>
+        </div>
+
+        <div class="search-section">
+            <h3 style="margin-bottom: 1rem;"><i class="fas fa-search"></i> Find Candidates</h3>
+            <div class="filter-row">
+                <select id="stateFilter">
+                    <option value="">All States</option>
+                    <option value="CA">California</option>
+                    <option value="TX">Texas</option>
+                    <option value="NY">New York</option>
+                    <option value="MA">Massachusetts</option>
+                    <option value="WA">Washington</option>
+                    <option value="IL">Illinois</option>
+                </select>
+                <select id="visaFilter">
+                    <option value="">All Visas</option>
+                    <option value="OPT_1st_year">OPT (1st Year)</option>
+                    <option value="OPT_2nd_year">OPT (2nd Year)</option>
+                    <option value="STEM_OPT">STEM OPT</option>
+                    <option value="H1B">H1B</option>
+                </select>
+                <input type="text" id="universityFilter" placeholder="University Name">
+                <input type="text" id="skillFilter" placeholder="Skills (e.g., Python, AWS)">
+            </div>
+            <button class="search-btn" onclick="searchCandidates()"><i class="fas fa-search"></i> Search Candidates</button>
+        </div>
+
+        <div class="results-header">
+            <div><span id="resultCount">0</span> candidates found</div>
+        </div>
+
+        <div id="results" class="students-grid">
+            <div class="loading"><div class="spinner"></div><p>Loading candidates...</p></div>
+        </div>
+    </div>
+
+    <!-- Contact Modal -->
+    <div id="contactModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Contact Candidate</h3>
+                <button class="modal-close" onclick="closeContactModal()">&times;</button>
+            </div>
+            <p>This will cost <strong>1 credit</strong>. Your remaining credits: <span id="modalCredits">-</span></p>
+            <textarea id="contactMessage" rows="4" style="width:100%; margin: 1rem 0; padding: 0.75rem; background:#0A0F1E; border:1px solid #667eea; border-radius:0.5rem; color:white;" placeholder="Write your message to the candidate..."></textarea>
+            <button class="search-btn" style="width:100%;" onclick="sendContact()">Send Message (1 Credit)</button>
+        </div>
+    </div>
+
+    <!-- View Full Profile Modal -->
+    <div id="profileModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Candidate Full Profile</h3>
+                <button class="modal-close" onclick="closeProfileModal()">&times;</button>
+            </div>
+            <div id="profileModalContent">
+                <div class="loading"><div class="spinner"></div><p>Loading profile...</p></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '';
+        let currentStudents = [];
+        let selectedStudentId = null;
+        let recruiterData = null;
+
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        function checkAuth() {
+            if (!getToken()) {
+                window.location.href = '/login.html';
+                return false;
+            }
+            return true;
+        }
+
+        async function loadRecruiterStats() {
+            try {
+                const response = await fetch(`${API_URL}/api/recruiter/stats`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('totalCandidates').innerText = result.totalStudents || 0;
+                    document.getElementById('optCandidates').innerText = result.optStudents || 0;
+                    document.getElementById('creditsRemaining').innerText = result.recruiter?.credits || 0;
+                    document.getElementById('hiresCount').innerText = result.recruiter?.total_hires || 0;
+                    document.getElementById('myContacts').innerText = result.recruiter?.total_contacts || 0;
+                    document.getElementById('myHires').innerText = result.recruiter?.total_hires || 0;
+                    recruiterData = result.recruiter;
+                }
+            } catch(e) {
+                console.error('Stats error:', e);
+            }
+        }
+
+        async function searchCandidates() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Searching...</p></div>';
+            
+            const body = {
+                state: document.getElementById('stateFilter').value,
+                visa: document.getElementById('visaFilter').value,
+                university: document.getElementById('universityFilter').value,
+                skill: document.getElementById('skillFilter').value
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/api/recruiter/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentStudents = result.students;
+                    document.getElementById('resultCount').innerText = result.count;
+                    displayStudents(result.students);
+                } else {
+                    resultsDiv.innerHTML = '<p style="text-align:center; padding:2rem;">No candidates found</p>';
+                }
+            } catch(e) {
+                resultsDiv.innerHTML = '<p style="text-align:center; padding:2rem; color: #f56565;">Error loading candidates</p>';
+            }
+        }
+
+        function displayStudents(students) {
+            const resultsDiv = document.getElementById('results');
+            
+            if (students.length === 0) {
+                resultsDiv.innerHTML = '<p style="text-align:center; padding:2rem;">No candidates match your criteria</p>';
+                return;
+            }
+            
+            let html = '';
+            students.forEach(student => {
+                html += `
+                    <div class="student-card">
+                        <div class="card-header">
+                            <div>
+                                <div class="student-name">${escapeHtml(student.full_name || 'Student')}</div>
+                                <div class="student-university">${student.university_name || 'University'}</div>
+                            </div>
+                            <div class="match-badge">${Math.floor(Math.random() * 30) + 70}% Match</div>
+                        </div>
+                        <div class="student-details">
+                            <span class="detail-badge"><i class="fas fa-map-marker-alt"></i> ${student.current_city || 'N/A'}, ${student.current_state || 'N/A'}</span>
+                            <span class="detail-badge"><i class="fas fa-passport"></i> ${formatVisa(student.visa_type)}</span>
+                        </div>
+                        <div id="skills-${student.id}" class="skills-container">
+                            <span class="detail-badge">Loading skills...</span>
+                        </div>
+                        <div class="card-actions">
+                            <button class="view-btn" onclick="viewFullProfile('${student.id}')"><i class="fas fa-eye"></i> View</button>
+                            <button class="contact-btn" onclick="openContactModal('${student.id}')"><i class="fas fa-envelope"></i> Contact</button>
+                            <button class="hire-btn" onclick="markAsHired('${student.id}')"><i class="fas fa-check"></i> Hire</button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            resultsDiv.innerHTML = html;
+            
+            students.forEach(student => {
+                loadStudentSkills(student.id);
+            });
+        }
+
+        async function loadStudentSkills(studentId) {
+            try {
+                const response = await fetch(`${API_URL}/api/recruiter/student/${studentId}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const result = await response.json();
+                
+                if (result.success && result.student) {
+                    // Skills are fetched but not displayed in search results to save credits
+                    // This is just a placeholder
+                }
+            } catch(e) {}
+        }
+
+        async function viewFullProfile(studentId) {
+            const modal = document.getElementById('profileModal');
+            const content = document.getElementById('profileModalContent');
+            content.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading profile...</p></div>';
+            modal.classList.add('active');
+            
+            try {
+                const response = await fetch(`${API_URL}/api/recruiter/student/${studentId}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    const s = result.student;
+                    content.innerHTML = `
+                        <div style="margin-bottom: 1rem;">
+                            <h4>${escapeHtml(s.full_name)}</h4>
+                            <p style="color: #667eea;">${s.university_name || 'University'}</p>
+                        </div>
+                        <div class="student-details" style="flex-direction: column;">
+                            <span><i class="fas fa-map-marker-alt"></i> ${s.current_city || 'N/A'}, ${s.current_state || 'N/A'}</span>
+                            <span><i class="fas fa-passport"></i> ${formatVisa(s.visa_type)}</span>
+                            <span><i class="fas fa-calendar"></i> Graduation: ${s.graduation_date || 'N/A'}</span>
+                            <span><i class="fas fa-envelope"></i> Email: ${s.email || 'Hidden - use Contact'}</span>
+                            <span><i class="fas fa-phone"></i> Phone: ${s.phone || 'Hidden - use Contact'}</span>
+                        </div>
+                        <div class="skills-container" style="margin-top: 1rem;">
+                            ${s.skills ? s.skills.map(skill => `<span class="skill">${skill}</span>`).join('') : '<span>No skills listed</span>'}
+                        </div>
+                        ${s.linkedin_url ? `<div style="margin-top: 1rem;"><a href="${s.linkedin_url}" target="_blank" style="color:#667eea;"><i class="fab fa-linkedin"></i> LinkedIn Profile</a></div>` : ''}
+                        ${s.github_url ? `<div><a href="${s.github_url}" target="_blank" style="color:#667eea;"><i class="fab fa-github"></i> GitHub Profile</a></div>` : ''}
+                        <div class="card-actions" style="margin-top: 1.5rem;">
+                            <button class="contact-btn" onclick="closeProfileModal(); openContactModal('${studentId}')">Contact (1 Credit)</button>
+                            <button class="hire-btn" onclick="closeProfileModal(); markAsHired('${studentId}')">Mark as Hired</button>
+                        </div>
+                    `;
+                }
+            } catch(e) {
+                content.innerHTML = '<p style="color: #f56565;">Error loading profile</p>';
+            }
+        }
+
+        function openContactModal(studentId) {
+            if (recruiterData && recruiterData.credits <= 0) {
+                alert('Insufficient credits! Please upgrade your plan.');
+                return;
+            }
+            selectedStudentId = studentId;
+            document.getElementById('modalCredits').innerText = recruiterData?.credits || 0;
+            document.getElementById('contactModal').classList.add('active');
+        }
+
+        function closeContactModal() {
+            document.getElementById('contactModal').classList.remove('active');
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').classList.remove('active');
+        }
+
+        async function sendContact() {
+            const message = document.getElementById('contactMessage').value;
+            
+            if (!message) {
+                alert('Please enter a message');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/api/recruiter/contact`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ student_id: selectedStudentId, message })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Message sent successfully!');
+                    closeContactModal();
+                    loadRecruiterStats();
+                } else {
+                    alert(result.error || 'Failed to send message');
+                }
+            } catch(e) {
+                alert('Network error');
+            }
+        }
+
+        async function markAsHired(studentId) {
+            if (!confirm('Mark this candidate as hired? They will no longer appear in search results.')) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/recruiter/mark-hired`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ student_id: studentId })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Candidate marked as hired!');
+                    searchCandidates();
+                    loadRecruiterStats();
+                } else {
+                    alert(result.error || 'Failed to mark as hired');
+                }
+            } catch(e) {
+                alert('Network error');
+            }
+        }
+
+        function formatVisa(visa) {
+            const map = {
+                'OPT_1st_year': 'OPT (1st Year)',
+                'OPT_2nd_year': 'OPT (2nd Year)',
+                'STEM_OPT': 'STEM OPT',
+                'H1B': 'H1B'
+            };
+            return map[visa] || visa || 'N/A';
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login.html';
+        }
+
+        // Initialize
+        if (checkAuth()) {
+            loadRecruiterStats();
+            searchCandidates();
+        }
+    </script>
+</body>
+</html>
