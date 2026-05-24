@@ -138,38 +138,45 @@
             font-weight: 500;
         }
 
+        /* ========== FIXED DROPDOWN STYLES - VISIBLE TEXT ========== */
         input, select {
             width: 100%;
             padding: 0.9rem 1rem;
-            background: #1a1f3a;
+            background-color: #1a1f3a !important;
             border: 1.5px solid rgba(102, 126, 234, 0.3);
             border-radius: 1rem;
-            color: white;
+            color: #ffffff !important;
             font-size: 0.9rem;
             transition: all 0.3s;
         }
 
-        /* FIXED: Dark dropdowns with visible text */
         select {
-            background: #1a1f3a;
-            color: white;
+            background-color: #1a1f3a !important;
+            color: #ffffff !important;
             cursor: pointer;
         }
 
         select option {
-            background: #1a1f3a;
-            color: white;
+            background-color: #0A0F1E !important;
+            color: #ffffff !important;
             padding: 10px;
         }
 
         input:focus, select:focus {
             outline: none;
             border-color: #667eea;
-            background: #1a1f3a;
+            background-color: #1a1f3a !important;
         }
 
         input::placeholder {
             color: rgba(255,255,255,0.3);
+        }
+
+        /* Fix for autofill */
+        input:-webkit-autofill,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1a1f3a inset !important;
+            -webkit-text-fill-color: #ffffff !important;
         }
 
         .btn {
