@@ -1046,7 +1046,7 @@ app.get('/api/admin/students', authenticateToken, async (req, res) => {
         
         const { data: students, error } = await supabase
             .from('students')
-            .select('*, auth_users(email, full_name)')
+            .select('*')
             .order('created_at', { ascending: false });
         
         if (error) throw error;
