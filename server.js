@@ -23,7 +23,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// File upload
+// Serve login page as default
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// File upload configuration
 const storage = multer.diskStorage({
     destination: './uploads/',
     filename: (req, file, cb) => {
