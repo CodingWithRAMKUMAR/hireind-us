@@ -11,10 +11,16 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Supabase Client
+// Supabase Client (Regular - for most operations)
 const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_ANON_KEY
+);
+
+// Supabase Admin Client (Service Role - for storage uploads)
+const supabaseAdmin = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // Middleware
@@ -327,7 +333,7 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
         let resume_url = null;
         if (req.file) {
             const fileName = Date.now() + '-' + req.file.originalname;
-            const { error: uploadError } = await supabase.storage
+            const { error: uploadError } = await supabaseAdmin.storage
                 .from('resumes')
                 .upload(fileName, req.file.buffer);
             
@@ -420,7 +426,7 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
     }
 });
 
-// ========== FIXED RESUME UPLOAD ROUTE ==========
+// ========== FIXED RESUME UPLOAD ROUTE (Using Service Role Key) ==========
 app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
         if (req.user.role !== 'student') {
@@ -451,8 +457,8 @@ app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'
         const cleanFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
         const fileName = `${Date.now()}_${req.user.id}_${cleanFileName}`;
         
-        // Upload to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        // Upload to Supabase Storage using ADMIN client (bypasses RLS)
+        const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
             .from('resumes')
             .upload(fileName, req.file.buffer, {
                 contentType: req.file.mimetype,
