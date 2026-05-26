@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Inbox - HireIND_US</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0A0F1E; color: white; }
+        
+        /* Navbar */
+        .navbar {
+            background: rgba(10, 14, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .logo { display: flex; align-items: center; gap: 0.75rem; }
+        .logo i { font-size: 1.5rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .logo span { font-size: 1.2rem; font-weight: 700; color: white; }
+        .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+        .nav-link { color: rgba(255,255,255,0.7); text-decoration: none; transition: color 0.2s; }
+        .nav-link:hover { color: #667eea; }
+        .logout-btn { background: rgba(245, 101, 101, 0.2); border: 1px solid #f56565; padding: 0.5rem 1rem; border-radius: 0.5rem; color: #f56565; cursor: pointer; }
+        .badge { background: #f56565; color: white; border-radius: 50%; padding: 2px 6px; font-size: 10px; margin-left: 5px; }
+        
+        /* Container */
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        
+        /* Header */
+        .header { margin-bottom: 2rem; }
+        .header h1 { font-size: 1.8rem; font-weight: 700; }
+        .header p { color: rgba(255,255,255,0.6); margin-top: 0.5rem; }
+        
+        /* Stats Cards */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { background: rgba(15, 20, 40, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(102, 126, 234, 0.2); border-radius: 1rem; padding: 1.5rem; text-align: center; }
+        .stat-number { font-size: 2rem; font-weight: 800; color: #667eea; }
+        .stat-label { color: rgba(255,255,255,0.6); font-size: 0.85rem; margin-top: 0.25rem; }
+        
+        /* Messages List */
+        .messages-container { background: rgba(15, 20, 40, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(102, 126, 234, 0.2); border-radius: 1rem; overflow: hidden; }
+        .message-item {
+            padding: 1.5rem;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .message-item:hover { background: rgba(102, 126, 234, 0.1); }
+        .message-item.unread { background: rgba(102, 126, 234, 0.15); border-left: 3px solid #667eea; }
+        .message-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem; }
+        .company-name { font-weight: 700; color: #667eea; }
+        .message-date { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+        .message-subject { font-weight: 600; margin-bottom: 0.5rem; }
+        .message-preview { color: rgba(255,255,255,0.6); font-size: 0.85rem; }
+        .unread-badge { background: #667eea; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; }
+        
+        /* Empty State */
+        .empty-state { text-align: center; padding: 3rem; color: rgba(255,255,255,0.5); }
+        .empty-state i { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: #1a1f3a;
+            border-radius: 1rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(102, 126, 234, 0.3); }
+        .modal-close { background: none; border: none; font-size: 1.5rem; color: white; cursor: pointer; }
+        .message-detail { margin-bottom: 1.5rem; }
+        .detail-label { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-bottom: 0.25rem; }
+        .detail-value { font-size: 1rem; }
+        .message-body { background: #0A0F1E; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; line-height: 1.5; }
+        .reply-box { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(102, 126, 234, 0.3); }
+        .reply-textarea { width: 100%; padding: 0.75rem; background: #0A0F1E; border: 1px solid #667eea; border-radius: 0.5rem; color: white; font-family: inherit; margin-bottom: 1rem; resize: vertical; }
+        .send-reply-btn { background: linear-gradient(135deg, #667eea, #764ba2); border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; }
+        .loading { text-align: center; padding: 2rem; }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(102, 126, 234, 0.2);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            .message-header { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo"><i class="fas fa-inbox"></i><span>HireIND_US</span></div>
+        <div class="nav-links">
+            <a href="student-dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <a href="student-inbox.html" class="nav-link"><i class="fas fa-envelope"></i> Inbox</a>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-envelope"></i> My Inbox</h1>
+            <p>Messages from recruiters interested in your profile</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalMessages">-</div>
+                <div class="stat-label">Total Messages</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="unreadMessages">-</div>
+                <div class="stat-label">Unread</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="repliedMessages">-</div>
+                <div class="stat-label">Replied</div>
+            </div>
+        </div>
+
+        <div class="messages-container" id="messagesContainer">
+            <div class="loading"><div class="spinner"></div><p>Loading messages...</p></div>
+        </div>
+    </div>
+
+    <!-- Message Detail Modal -->
+    <div id="messageModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Message Details</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalContent">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '';
+        let currentMessages = [];
+        let currentMessageId = null;
+
+        function getToken() { return localStorage.getItem('token'); }
+
+        function checkAuth() {
+            if (!getToken()) {
+                window.location.href = '/login.html';
+                return false;
+            }
+            return true;
+        }
+
+        async function loadMessages() {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading messages...</p></div>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/student/messages`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentMessages = result.messages || [];
+                    displayMessages(currentMessages);
+                    updateStats(currentMessages);
+                } else {
+                    container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>Failed to load messages</p></div>';
+                }
+            } catch (error) {
+                console.error('Error loading messages:', error);
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-wifi"></i><p>Network error. Please try again.</p></div>';
+            }
+        }
+
+        function displayMessages(messages) {
+            const container = document.getElementById('messagesContainer');
+            
+            if (messages.length === 0) {
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>Your inbox is empty</p><p style="font-size: 0.85rem; margin-top: 0.5rem;">When recruiters contact you, messages will appear here.</p></div>';
+                return;
+            }
+            
+            let html = '';
+            messages.forEach(msg => {
+                const isUnread = !msg.is_read;
+                const date = new Date(msg.contacted_at).toLocaleString();
+                const companyName = msg.recruiters?.company_name || 'Recruiter';
+                
+                html += `
+                    <div class="message-item ${isUnread ? 'unread' : ''}" onclick="viewMessage('${msg.id}')">
+                        <div class="message-header">
+                            <span class="company-name"><i class="fas fa-building"></i> ${escapeHtml(companyName)}</span>
+                            <span class="message-date">${date}</span>
+                        </div>
+                        <div class="message-subject">${escapeHtml(msg.subject || 'Job Opportunity')}</div>
+                        <div class="message-preview">${escapeHtml(msg.message?.substring(0, 100))}${msg.message?.length > 100 ? '...' : ''}</div>
+                        ${isUnread ? '<div class="unread-badge">New</div>' : ''}
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function updateStats(messages) {
+            const total = messages.length;
+            const unread = messages.filter(m => !m.is_read).length;
+            document.getElementById('totalMessages').innerText = total;
+            document.getElementById('unreadMessages').innerText = unread;
+        }
+
+        async function viewMessage(messageId) {
+            const message = currentMessages.find(m => m.id === messageId);
+            if (!message) return;
+            
+            currentMessageId = messageId;
+            
+            // Mark as read if unread
+            if (!message.is_read) {
+                await markAsRead(messageId);
+                message.is_read = true;
+                displayMessages(currentMessages);
+                updateStats(currentMessages);
+            }
+            
+            const modal = document.getElementById('messageModal');
+            const modalContent = document.getElementById('modalContent');
+            const date = new Date(message.contacted_at).toLocaleString();
+            const companyName = message.recruiters?.company_name || 'Recruiter';
+            
+            modalContent.innerHTML = `
+                <div class="message-detail">
+                    <div class="detail-label">From</div>
+                    <div class="detail-value"><strong>${escapeHtml(companyName)}</strong></div>
+                </div>
+                <div class="message-detail">
+                    <div class="detail-label">Date</div>
+                    <div class="detail-value">${date}</div>
+                </div>
+                <div class="message-detail">
+                    <div class="detail-label">Subject</div>
+                    <div class="detail-value">${escapeHtml(message.subject || 'Job Opportunity')}</div>
+                </div>
+                <div class="message-detail">
+                    <div class="detail-label">Message</div>
+                    <div class="message-body">${escapeHtml(message.message || 'No message content')}</div>
+                </div>
+                <div class="reply-box">
+                    <div class="detail-label">Reply to ${escapeHtml(companyName)}</div>
+                    <textarea id="replyMessage" class="reply-textarea" rows="4" placeholder="Type your reply here..."></textarea>
+                    <button class="send-reply-btn" onclick="sendReply()"><i class="fas fa-paper-plane"></i> Send Reply</button>
+                </div>
+            `;
+            
+            modal.classList.add('active');
+        }
+
+        async function markAsRead(messageId) {
+            try {
+                await fetch(`${API_URL}/api/student/mark-read`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message_id: messageId })
+                });
+            } catch (error) {
+                console.error('Mark as read error:', error);
+            }
+        }
+
+        async function sendReply() {
+            const replyMessage = document.getElementById('replyMessage').value;
+            if (!replyMessage.trim()) {
+                alert('Please enter a reply message');
+                return;
+            }
+            
+            const sendBtn = document.querySelector('.send-reply-btn');
+            const originalText = sendBtn.innerHTML;
+            sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            sendBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/student/reply`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        original_message_id: currentMessageId,
+                        message: replyMessage
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Reply sent successfully!');
+                    document.getElementById('replyMessage').value = '';
+                    closeModal();
+                } else {
+                    alert('❌ Error: ' + (result.error || 'Failed to send reply'));
+                }
+            } catch (error) {
+                console.error('Reply error:', error);
+                alert('❌ Network error: ' + error.message);
+            } finally {
+                sendBtn.innerHTML = originalText;
+                sendBtn.disabled = false;
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('messageModal').classList.remove('active');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login.html';
+        }
+
+        // Initialize
+        if (checkAuth()) {
+            loadMessages();
+        }
+    </script>
+</body>
+</html>
