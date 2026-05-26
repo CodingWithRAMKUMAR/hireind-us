@@ -34,16 +34,12 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// File upload configuration
-const storage = multer.diskStorage({
-    destination: './uploads/',
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
-    }
+// ========== MULTER CONFIGURATION (FIXED - Using memoryStorage) ==========
+const storage = multer.memoryStorage();
+const upload = multer({ 
+    storage: storage, 
+    limits: { fileSize: 10 * 1024 * 1024 }  // 10MB limit
 });
-const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 } });
-
-if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
 
 // ========== AUTH MIDDLEWARE ==========
 const authenticateToken = async (req, res, next) => {
@@ -335,10 +331,21 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
         
         let resume_url = null;
         if (req.file) {
-            const fileName = Date.now() + '-' + req.file.originalname;
+            const fileBuffer = req.file.buffer;
+            
+            if (fileBuffer.length === 0) {
+                return res.status(400).json({ error: 'Uploaded file is empty' });
+            }
+            
+            const cleanFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const fileName = `${Date.now()}_${req.user.id}_${cleanFileName}`;
+            
             const { error: uploadError } = await supabaseAdmin.storage
                 .from('resumes')
-                .upload(fileName, req.file.buffer);
+                .upload(fileName, fileBuffer, {
+                    contentType: req.file.mimetype || 'application/pdf',
+                    cacheControl: '3600'
+                });
             
             if (!uploadError) {
                 const { data: urlData } = supabase.storage
@@ -429,15 +436,16 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
     }
 });
 
-// ========== RESUME UPLOAD ROUTE ==========
+// ========== RESUME UPLOAD ROUTE (FIXED - Proper file handling) ==========
 app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
         if (req.user.role !== 'student') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        console.log('📄 Resume upload request from user:', req.user.id);
+        console.log('📄 Upload request from user:', req.user.id);
         
+        // Get student record
         const { data: student, error: studentError } = await supabase
             .from('students')
             .select('id')
@@ -449,19 +457,33 @@ app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'
             return res.status(404).json({ error: 'Student profile not found. Please complete your profile first.' });
         }
         
-        console.log('Student found with ID:', student.id);
-        
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
         
+        const fileBuffer = req.file.buffer;
+        
+        console.log('File name:', req.file.originalname);
+        console.log('File size:', fileBuffer.length, 'bytes');
+        console.log('File mimetype:', req.file.mimetype);
+        
+        if (fileBuffer.length === 0) {
+            return res.status(400).json({ error: 'File is empty. Please select a valid PDF file.' });
+        }
+        
+        if (req.file.mimetype !== 'application/pdf') {
+            return res.status(400).json({ error: 'Only PDF files are allowed.' });
+        }
+        
+        // Clean filename
         const cleanFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
         const fileName = `${Date.now()}_${req.user.id}_${cleanFileName}`;
         
+        // Upload to Supabase Storage using Admin client
         const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
             .from('resumes')
-            .upload(fileName, req.file.buffer, {
-                contentType: req.file.mimetype,
+            .upload(fileName, fileBuffer, {
+                contentType: 'application/pdf',
                 cacheControl: '3600'
             });
         
@@ -470,21 +492,29 @@ app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'
             return res.status(500).json({ error: 'Storage upload failed: ' + uploadError.message });
         }
         
-        console.log('File uploaded to storage:', fileName);
+        console.log('Upload successful! File size in storage:', uploadData?.size);
         
+        // Get public URL
         const { data: urlData } = supabase.storage
             .from('resumes')
             .getPublicUrl(fileName);
         
         const resume_url = urlData.publicUrl;
         
+        // Set all existing resumes to inactive
+        await supabase
+            .from('resume_versions')
+            .update({ is_active: false })
+            .eq('student_id', student.id);
+        
+        // Save to database
         const { data: resume, error: insertError } = await supabase
             .from('resume_versions')
             .insert({
                 student_id: student.id,
                 resume_url: resume_url,
                 file_name: req.file.originalname,
-                is_active: false,
+                is_active: true,
                 uploaded_at: new Date().toISOString()
             })
             .select()
@@ -492,7 +522,7 @@ app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'
         
         if (insertError) {
             console.error('Database insert error:', insertError);
-            return res.status(500).json({ error: 'Database insert failed: ' + insertError.message });
+            return res.status(500).json({ error: 'Failed to save resume record: ' + insertError.message });
         }
         
         console.log('✅ Resume saved to database, ID:', resume.id);
@@ -500,7 +530,8 @@ app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'
         res.json({ 
             success: true, 
             resume, 
-            message: 'Resume uploaded successfully' 
+            message: 'Resume uploaded successfully',
+            file_size: fileBuffer.length
         });
         
     } catch (error) {
@@ -1245,7 +1276,11 @@ app.post('/api/admin/bulk-upload', authenticateToken, upload.single('csv'), asyn
         let added = 0;
         let duplicates = 0;
         
-        fs.createReadStream(req.file.path)
+        // Create a temporary file from buffer
+        const tempFilePath = path.join(__dirname, 'uploads', Date.now() + '.csv');
+        fs.writeFileSync(tempFilePath, req.file.buffer);
+        
+        fs.createReadStream(tempFilePath)
             .pipe(csv())
             .on('data', (data) => results.push(data))
             .on('end', async () => {
@@ -1297,6 +1332,9 @@ app.post('/api/admin/bulk-upload', authenticateToken, upload.single('csv'), asyn
                     added++;
                 }
                 
+                // Clean up temp file
+                fs.unlinkSync(tempFilePath);
+                
                 res.json({
                     success: true,
                     total: results.length,
@@ -1332,6 +1370,7 @@ app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) =>
         }
         
         console.log('Resume found for student_id:', resume.student_id);
+        console.log('Resume URL:', resume.resume_url);
         
         // For recruiters, check if they have contacted this student
         if (req.user.role === 'recruiter') {
@@ -1368,7 +1407,7 @@ app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) =>
             console.log('Contact found - access granted');
         }
         
-        // For admin, always allow
+        // Return the download URL
         res.json({ success: true, download_url: resume.resume_url });
         
     } catch (error) {
@@ -1395,4 +1434,5 @@ app.listen(PORT, () => {
     console.log(`✅ Student Reply: ENABLED`);
     console.log(`✅ Recruiter Inbox: ENABLED`);
     console.log(`✅ Recruiter Resume Download: FIXED`);
+    console.log(`✅ Resume Upload: FIXED (memoryStorage)`);
 });
