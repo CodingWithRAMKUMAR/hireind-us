@@ -80,6 +80,8 @@
         }
         .resume-link { color: #667eea; text-decoration: none; }
         .resume-link:hover { text-decoration: underline; }
+        .delete-resume-btn { background: #f56565; border: none; padding: 0.25rem 0.75rem; border-radius: 0.25rem; color: white; cursor: pointer; font-size: 0.75rem; }
+        .delete-resume-btn:hover { background: #e53e3e; }
         .modal {
             display: none;
             position: fixed;
@@ -252,7 +254,7 @@
         <div class="modal-content">
             <div class="modal-header"><h3>Upload New Resume</h3><button class="modal-close" onclick="closeResumeModal()">&times;</button></div>
             <form id="resumeUploadForm" enctype="multipart/form-data">
-                <div class="form-group"><label>Choose PDF File</label><input type="file" name="resume" accept=".pdf,.docx" required></div>
+                <div class="form-group"><label>Choose PDF File</label><input type="file" name="resume" accept=".pdf" required></div>
                 <button type="submit" class="save-btn">Upload Resume</button>
             </form>
         </div>
@@ -344,15 +346,47 @@
                 card.style.display = 'block';
                 let html = '';
                 resumes.forEach(resume => {
+                    const isActive = resume.is_active;
                     html += `
                         <div class="resume-item">
-                            <span><i class="fas fa-file-pdf"></i> ${escapeHtml(resume.file_name || 'Resume')}</span>
-                            <span>Uploaded: ${new Date(resume.uploaded_at).toLocaleDateString()}</span>
-                            <a href="${resume.resume_url}" target="_blank" class="resume-link"><i class="fas fa-download"></i> Download</a>
+                            <div>
+                                <i class="fas fa-file-pdf"></i> ${escapeHtml(resume.file_name || 'Resume')}
+                                ${isActive ? '<span style="color:#48bb78; margin-left:8px;">(Current)</span>' : ''}
+                                <br>
+                                <small style="color:rgba(255,255,255,0.5);">Uploaded: ${new Date(resume.uploaded_at).toLocaleDateString()}</small>
+                            </div>
+                            <div>
+                                <a href="${resume.resume_url}" target="_blank" class="resume-link" style="margin-right:10px;"><i class="fas fa-download"></i> Download</a>
+                                <button class="delete-resume-btn" onclick="deleteResume('${resume.id}')"><i class="fas fa-trash"></i> Delete</button>
+                            </div>
                         </div>
                     `;
                 });
                 container.innerHTML = html;
+            }
+        }
+
+        async function deleteResume(resumeId) {
+            if (!confirm('Are you sure you want to delete this resume? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/api/student/delete-resume/${resumeId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Resume deleted successfully');
+                    loadDashboard();
+                } else {
+                    alert('❌ Error: ' + (result.error || 'Delete failed'));
+                }
+            } catch (error) {
+                alert('❌ Network error: ' + error.message);
             }
         }
 
