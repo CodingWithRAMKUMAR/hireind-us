@@ -3,16 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HireIND_US - Login or Register</title>
+    <title>HireIND_US - Login</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', sans-serif;
             background: linear-gradient(135deg, #0A0F1E 0%, #1A1F3A 100%);
@@ -22,12 +17,7 @@
             justify-content: center;
             padding: 20px;
         }
-
-        .container {
-            max-width: 1200px;
-            width: 100%;
-        }
-
+        .container { max-width: 1200px; width: 100%; }
         .glass-card {
             background: rgba(15, 20, 40, 0.8);
             backdrop-filter: blur(20px);
@@ -37,7 +27,6 @@
             grid-template-columns: 1fr 1.2fr;
             overflow: hidden;
         }
-
         .hero-side {
             background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15));
             padding: 3rem;
@@ -45,120 +34,24 @@
             flex-direction: column;
             justify-content: center;
         }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 2rem;
-        }
-
-        .logo i {
-            font-size: 2rem;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-        }
-
-        .logo span {
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: white;
-        }
-
-        .hero-title {
-            font-size: 2rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #fff, #c3dafe);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            margin-bottom: 1rem;
-        }
-
-        .hero-text {
-            color: rgba(255,255,255,0.6);
-            line-height: 1.6;
-            margin-bottom: 2rem;
-        }
-
-        .stats {
-            display: flex;
-            gap: 2rem;
-            margin-top: 1rem;
-        }
-
-        .stat {
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: #667eea;
-        }
-
-        .stat-label {
-            font-size: 0.75rem;
-            color: rgba(255,255,255,0.5);
-        }
-
-        .form-side {
-            padding: 3rem;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-            border-bottom: 1px solid rgba(102, 126, 234, 0.3);
-            padding-bottom: 1rem;
-        }
-
-        .tab {
-            background: none;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-            font-weight: 600;
-            color: rgba(255,255,255,0.6);
-            cursor: pointer;
-            border-radius: 0.5rem;
-            transition: all 0.3s;
-        }
-
-        .tab.active {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-
-        .form {
-            display: none;
-        }
-
-        .form.active {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: rgba(255,255,255,0.8);
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-
+        .logo { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 2rem; }
+        .logo i { font-size: 2rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .logo span { font-size: 1.3rem; font-weight: 700; color: white; }
+        .hero-title { font-size: 2rem; font-weight: 800; background: linear-gradient(135deg, #fff, #c3dafe); -webkit-background-clip: text; background-clip: text; color: transparent; margin-bottom: 1rem; }
+        .hero-text { color: rgba(255,255,255,0.6); line-height: 1.6; margin-bottom: 2rem; }
+        .stats { display: flex; gap: 2rem; margin-top: 1rem; }
+        .stat { text-align: center; }
+        .stat-number { font-size: 1.5rem; font-weight: 800; color: #667eea; }
+        .stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+        .form-side { padding: 3rem; }
+        .tabs { display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 1px solid rgba(102, 126, 234, 0.3); padding-bottom: 1rem; }
+        .tab { background: none; border: none; padding: 0.75rem 1.5rem; font-size: 1rem; font-weight: 600; color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 0.5rem; transition: all 0.3s; }
+        .tab.active { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .form { display: none; }
+        .form.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; color: rgba(255,255,255,0.8); font-size: 0.85rem; font-weight: 500; }
         input, select {
             width: 100%;
             padding: 0.9rem 1rem;
@@ -169,119 +62,25 @@
             font-size: 0.9rem;
             transition: all 0.3s;
         }
-
-        select {
-            background-color: #1a1f3a;
-            color: white;
-            cursor: pointer;
-        }
-
-        select option {
-            background-color: #0A0F1E;
-            color: white;
-            padding: 10px;
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: #667eea;
-            background-color: #1a1f3a;
-        }
-
-        input::placeholder {
-            color: rgba(255,255,255,0.3);
-        }
-
-        .btn {
-            width: 100%;
-            padding: 1rem;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border: none;
-            border-radius: 1rem;
-            color: white;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px -5px rgba(102, 126, 234, 0.4);
-        }
-
-        .message {
-            margin-top: 1rem;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            display: none;
-            font-size: 0.85rem;
-        }
-
-        .message.error {
-            background: rgba(245, 101, 101, 0.2);
-            border: 1px solid #f56565;
-            color: #f56565;
-            display: block;
-        }
-
-        .message.success {
-            background: rgba(72, 187, 120, 0.2);
-            border: 1px solid #48bb78;
-            color: #48bb78;
-            display: block;
-        }
-
-        .role-selector {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .role-option {
-            flex: 1;
-            padding: 1rem;
-            background: rgba(255,255,255,0.05);
-            border: 1.5px solid rgba(102, 126, 234, 0.3);
-            border-radius: 1rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .role-option.selected {
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
-            border-color: #667eea;
-        }
-
-        .role-option i {
-            font-size: 1.5rem;
-            color: #667eea;
-            margin-bottom: 0.5rem;
-        }
-
-        .role-option div {
-            color: white;
-            font-weight: 600;
-        }
-
+        select option { background-color: #0A0F1E; color: white; }
+        input:focus, select:focus { outline: none; border-color: #667eea; background-color: #1a1f3a; }
+        input::placeholder { color: rgba(255,255,255,0.3); }
+        .btn { width: 100%; padding: 1rem; background: linear-gradient(135deg, #667eea, #764ba2); border: none; border-radius: 1rem; color: white; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -5px rgba(102, 126, 234, 0.4); }
+        .message { margin-top: 1rem; padding: 0.75rem; border-radius: 0.5rem; display: none; font-size: 0.85rem; }
+        .message.error { background: rgba(245, 101, 101, 0.2); border: 1px solid #f56565; color: #f56565; display: block; }
+        .message.success { background: rgba(72, 187, 120, 0.2); border: 1px solid #48bb78; color: #48bb78; display: block; }
+        .role-selector { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+        .role-option { flex: 1; padding: 1rem; background: rgba(255,255,255,0.05); border: 1.5px solid rgba(102, 126, 234, 0.3); border-radius: 1rem; text-align: center; cursor: pointer; transition: all 0.3s; }
+        .role-option.selected { background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-color: #667eea; }
+        .role-option i { font-size: 1.5rem; color: #667eea; margin-bottom: 0.5rem; }
+        .role-option div { color: white; font-weight: 600; }
         @media (max-width: 768px) {
-            .glass-card {
-                grid-template-columns: 1fr;
-            }
-            .hero-side {
-                padding: 2rem;
-                text-align: center;
-            }
-            .form-side {
-                padding: 2rem;
-            }
-            .role-selector {
-                flex-direction: column;
-            }
-            .stats {
-                justify-content: center;
-            }
+            .glass-card { grid-template-columns: 1fr; }
+            .hero-side { padding: 2rem; text-align: center; }
+            .form-side { padding: 2rem; }
+            .role-selector { flex-direction: column; }
+            .stats { justify-content: center; }
         }
     </style>
 </head>
@@ -289,25 +88,13 @@
     <div class="container">
         <div class="glass-card">
             <div class="hero-side">
-                <div class="logo">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <span>HireIND_US</span>
-                </div>
+                <div class="logo"><i class="fas fa-cloud-upload-alt"></i><span>HireIND_US</span></div>
                 <h1 class="hero-title">Bridge the Gap<br>Between Talent & Opportunity</h1>
                 <p class="hero-text">Connect with top US companies hiring Indian talent. Your dream job is just a click away.</p>
                 <div class="stats">
-                    <div class="stat">
-                        <div class="stat-number">5000+</div>
-                        <div class="stat-label">Active Students</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-number">200+</div>
-                        <div class="stat-label">Partner Companies</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-number">92%</div>
-                        <div class="stat-label">Placement Rate</div>
-                    </div>
+                    <div class="stat"><div class="stat-number">5000+</div><div class="stat-label">Active Students</div></div>
+                    <div class="stat"><div class="stat-number">200+</div><div class="stat-label">Partner Companies</div></div>
+                    <div class="stat"><div class="stat-number">92%</div><div class="stat-label">Placement Rate</div></div>
                 </div>
             </div>
             <div class="form-side">
@@ -315,51 +102,25 @@
                     <button class="tab active" onclick="switchTab('login')">Login</button>
                     <button class="tab" onclick="switchTab('register')">Register</button>
                 </div>
-
                 <div id="loginForm" class="form active">
                     <form onsubmit="handleLogin(event)">
-                        <div class="form-group">
-                            <label>Email Address</label>
-                            <input type="email" id="loginEmail" placeholder="you@example.com" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Password</label>
-                            <input type="password" id="loginPassword" placeholder="••••••••" required>
-                        </div>
+                        <div class="form-group"><label>Email Address</label><input type="email" id="loginEmail" placeholder="you@example.com" required></div>
+                        <div class="form-group"><label>Password</label><input type="password" id="loginPassword" placeholder="••••••••" required></div>
                         <button type="submit" class="btn">Login</button>
                         <div id="loginMessage" class="message"></div>
                     </form>
                 </div>
-
                 <div id="registerForm" class="form">
                     <form onsubmit="handleRegister(event)">
                         <div class="role-selector">
-                            <div class="role-option selected" data-role="student" onclick="selectRole('student')">
-                                <i class="fas fa-user-graduate"></i>
-                                <div>Student</div>
-                            </div>
-                            <div class="role-option" data-role="recruiter" onclick="selectRole('recruiter')">
-                                <i class="fas fa-briefcase"></i>
-                                <div>Recruiter</div>
-                            </div>
+                            <div class="role-option selected" data-role="student" onclick="selectRole('student')"><i class="fas fa-user-graduate"></i><div>Student</div></div>
+                            <div class="role-option" data-role="recruiter" onclick="selectRole('recruiter')"><i class="fas fa-briefcase"></i><div>Recruiter</div></div>
                         </div>
                         <input type="hidden" id="regRole" value="student">
-                        <div class="form-group">
-                            <label>Full Name</label>
-                            <input type="text" id="regName" placeholder="John Doe" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Email Address</label>
-                            <input type="email" id="regEmail" placeholder="you@example.com" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Password</label>
-                            <input type="password" id="regPassword" placeholder="At least 6 characters" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Confirm Password</label>
-                            <input type="password" id="regConfirmPassword" placeholder="••••••••" required>
-                        </div>
+                        <div class="form-group"><label>Full Name</label><input type="text" id="regName" placeholder="John Doe" required></div>
+                        <div class="form-group"><label>Email Address</label><input type="email" id="regEmail" placeholder="you@example.com" required></div>
+                        <div class="form-group"><label>Password</label><input type="password" id="regPassword" placeholder="At least 6 characters" required></div>
+                        <div class="form-group"><label>Confirm Password</label><input type="password" id="regConfirmPassword" placeholder="••••••••" required></div>
                         <button type="submit" class="btn">Create Account</button>
                         <div id="registerMessage" class="message"></div>
                     </form>
@@ -367,14 +128,11 @@
             </div>
         </div>
     </div>
-
     <script>
         const API_URL = '';
-
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
-            
             if (tab === 'login') {
                 document.getElementById('loginForm').classList.add('active');
                 document.getElementById('registerForm').classList.remove('active');
@@ -383,44 +141,34 @@
                 document.getElementById('registerForm').classList.add('active');
             }
         }
-
         function selectRole(role) {
             document.querySelectorAll('.role-option').forEach(r => r.classList.remove('selected'));
             event.target.closest('.role-option').classList.add('selected');
             document.getElementById('regRole').value = role;
         }
-
         async function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
             const messageDiv = document.getElementById('loginMessage');
-            
             messageDiv.className = 'message';
             messageDiv.innerHTML = 'Logging in...';
-            
             try {
                 const response = await fetch(`${API_URL}/api/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
                 });
-                
                 const result = await response.json();
-                
                 if (result.success) {
                     localStorage.setItem('token', result.token);
                     localStorage.setItem('user', JSON.stringify(result.user));
-                    
                     messageDiv.className = 'message success';
                     messageDiv.innerHTML = 'Login successful! Redirecting...';
-                    
                     setTimeout(() => {
-                        if (result.user.role === 'student') {
-                            window.location.href = '/student-dashboard.html';
-                        } else if (result.user.role === 'recruiter') {
-                            window.location.href = '/recruiter-dashboard.html';
-                        }
+                        if (result.user.role === 'student') window.location.href = '/student-dashboard.html';
+                        else if (result.user.role === 'recruiter') window.location.href = '/recruiter-dashboard.html';
+                        else if (result.user.role === 'admin') window.location.href = '/admin-dashboard.html';
                     }, 1500);
                 } else {
                     messageDiv.className = 'message error';
@@ -431,54 +179,41 @@
                 messageDiv.innerHTML = 'Network error. Please try again.';
             }
         }
-
         async function handleRegister(e) {
             e.preventDefault();
-            
             const full_name = document.getElementById('regName').value;
             const email = document.getElementById('regEmail').value;
             const password = document.getElementById('regPassword').value;
             const confirmPassword = document.getElementById('regConfirmPassword').value;
             const role = document.getElementById('regRole').value;
             const messageDiv = document.getElementById('registerMessage');
-            
             if (password !== confirmPassword) {
                 messageDiv.className = 'message error';
                 messageDiv.innerHTML = 'Passwords do not match';
                 return;
             }
-            
             if (password.length < 6) {
                 messageDiv.className = 'message error';
                 messageDiv.innerHTML = 'Password must be at least 6 characters';
                 return;
             }
-            
             messageDiv.className = 'message';
             messageDiv.innerHTML = 'Creating account...';
-            
             try {
                 const response = await fetch(`${API_URL}/api/auth/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ full_name, email, password, role })
                 });
-                
                 const result = await response.json();
-                
                 if (result.success) {
                     localStorage.setItem('token', result.token);
                     localStorage.setItem('user', JSON.stringify(result.user));
-                    
                     messageDiv.className = 'message success';
                     messageDiv.innerHTML = 'Registration successful! Redirecting...';
-                    
                     setTimeout(() => {
-                        if (role === 'student') {
-                            window.location.href = '/student-dashboard.html';
-                        } else {
-                            window.location.href = '/recruiter-dashboard.html';
-                        }
+                        if (role === 'student') window.location.href = '/student-dashboard.html';
+                        else window.location.href = '/recruiter-dashboard.html';
                     }, 1500);
                 } else {
                     messageDiv.className = 'message error';
