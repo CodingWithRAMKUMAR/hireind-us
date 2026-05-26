@@ -23,8 +23,20 @@
         .logo { display: flex; align-items: center; gap: 0.75rem; }
         .logo i { font-size: 1.5rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; background-clip: text; color: transparent; }
         .logo span { font-size: 1.2rem; font-weight: 700; color: white; }
+        .nav-links { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+        .nav-link { color: rgba(255,255,255,0.7); text-decoration: none; transition: color 0.2s; font-size: 0.9rem; }
+        .nav-link:hover { color: #667eea; }
         .credits-badge { background: linear-gradient(135deg, #667eea, #764ba2); padding: 0.5rem 1rem; border-radius: 2rem; font-size: 0.85rem; }
         .logout-btn { background: rgba(245, 101, 101, 0.2); border: 1px solid #f56565; padding: 0.5rem 1rem; border-radius: 0.5rem; color: #f56565; cursor: pointer; }
+        .badge {
+            background: #f56565;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 8px;
+            font-size: 11px;
+            margin-left: 5px;
+            display: inline-block;
+        }
         .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
         .stat-card { background: rgba(15, 20, 40, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(102, 126, 234, 0.2); border-radius: 1rem; padding: 1.5rem; text-align: center; }
@@ -42,7 +54,6 @@
         }
         select option { background-color: #0A0F1E; color: white; }
         .search-btn { background: linear-gradient(135deg, #667eea, #764ba2); border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; }
-        .test-btn { background: #48bb78; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; margin-left: 10px; }
         .students-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1.5rem; }
         .student-card { background: rgba(15, 20, 40, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(102, 126, 234, 0.2); border-radius: 1rem; padding: 1.5rem; transition: all 0.2s; }
         .student-card:hover { transform: translateY(-4px); border-color: #667eea; }
@@ -82,13 +93,15 @@
             margin: 0 auto 1rem;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        @media (max-width: 768px) { .container { padding: 1rem; } .students-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { .container { padding: 1rem; } .students-grid { grid-template-columns: 1fr; } .nav-links { justify-content: center; } }
     </style>
 </head>
 <body>
     <nav class="navbar">
         <div class="logo"><i class="fas fa-briefcase"></i><span>HireIND_US | Recruiter Portal</span></div>
-        <div style="display: flex; gap: 1rem; align-items: center;">
+        <div class="nav-links">
+            <a href="recruiter-dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <a href="recruiter-inbox.html" class="nav-link"><i class="fas fa-envelope"></i> Inbox <span id="inboxBadge" class="badge" style="display: none;">0</span></a>
             <div class="credits-badge"><i class="fas fa-coins"></i> <span id="creditsRemaining">-</span> Credits</div>
             <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
@@ -126,10 +139,7 @@
                     <option value="H1B">H1B</option>
                 </select>
             </div>
-            <div>
-                <button class="search-btn" onclick="searchCandidates()"><i class="fas fa-search"></i> Search Candidates</button>
-                <button class="test-btn" onclick="testContactDirectly()"><i class="fas fa-bug"></i> TEST CONTACT</button>
-            </div>
+            <button class="search-btn" onclick="searchCandidates()"><i class="fas fa-search"></i> Search Candidates</button>
         </div>
 
         <div id="results" class="students-grid"><div class="loading"><div class="spinner"></div><p>Loading candidates...</p></div></div>
@@ -143,6 +153,7 @@
                 <button class="modal-close" onclick="closeContactModal()">&times;</button>
             </div>
             <p>This will cost <strong>1 credit</strong>. Your remaining credits: <span id="modalCredits">-</span></p>
+            <input type="text" id="contactSubject" placeholder="Subject (Optional)" style="width:100%; padding:0.75rem; background:#0A0F1E; border:1px solid #667eea; border-radius:0.5rem; color:white; margin-bottom:1rem;">
             <textarea id="contactMessage" rows="4" placeholder="Write your message to the candidate..."></textarea>
             <button class="search-btn" style="width:100%;" onclick="sendContact()">Send Message (1 Credit)</button>
         </div>
@@ -164,9 +175,7 @@
         let selectedStudentId = null;
         let recruiterData = null;
 
-        function getToken() { 
-            return localStorage.getItem('token'); 
-        }
+        function getToken() { return localStorage.getItem('token'); }
 
         function checkAuth() { 
             if (!getToken()) { 
@@ -174,6 +183,22 @@
                 return false; 
             } 
             return true; 
+        }
+
+        async function loadUnreadCount() {
+            try {
+                const response = await fetch(`${API_URL}/api/recruiter/unread-count`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const result = await response.json();
+                if (result.success && result.count > 0) {
+                    const badge = document.getElementById('inboxBadge');
+                    badge.innerText = result.count;
+                    badge.style.display = 'inline-block';
+                } else {
+                    document.getElementById('inboxBadge').style.display = 'none';
+                }
+            } catch(e) { console.error('Unread count error:', e); }
         }
 
         async function loadStats() {
@@ -190,9 +215,7 @@
                     document.getElementById('myHires').innerText = result.recruiter?.total_hires || 0;
                     recruiterData = result.recruiter;
                 }
-            } catch(e) { 
-                console.error('Stats error:', e); 
-            }
+            } catch(e) { console.error('Stats error:', e); }
         }
 
         async function searchCandidates() {
@@ -239,6 +262,7 @@
                         <span class="detail-badge"><i class="fas fa-map-marker-alt"></i> ${s.current_city || 'N/A'}, ${s.current_state || 'N/A'}</span>
                         <span class="detail-badge"><i class="fas fa-university"></i> ${s.university_name || 'University'}</span>
                         <span class="detail-badge"><i class="fas fa-passport"></i> ${formatVisa(s.visa_type)}</span>
+                        <span class="detail-badge"><i class="fas fa-eye"></i> ${s.profile_view_count || 0} views</span>
                     </div>
                     <div class="card-actions">
                         <button class="view-btn" onclick="viewFullProfile('${s.id}')"><i class="fas fa-eye"></i> View</button>
@@ -295,22 +319,23 @@
             }
             selectedStudentId = studentId;
             document.getElementById('modalCredits').innerText = recruiterData?.credits || 0;
+            document.getElementById('contactSubject').value = '';
             document.getElementById('contactMessage').value = '';
             document.getElementById('contactModal').classList.add('active');
         }
 
         function closeContactModal() { 
             document.getElementById('contactModal').classList.remove('active'); 
-            document.getElementById('contactMessage').value = ''; 
         }
         
         function closeProfileModal() { 
             document.getElementById('profileModal').classList.remove('active'); 
         }
 
-        // ========== FIXED SEND CONTACT FUNCTION ==========
         async function sendContact() {
+            const subject = document.getElementById('contactSubject').value;
             const message = document.getElementById('contactMessage').value;
+            
             if (!message) { 
                 alert('Please enter a message'); 
                 return; 
@@ -330,6 +355,7 @@
                     },
                     body: JSON.stringify({ 
                         student_id: selectedStudentId, 
+                        subject: subject || 'Job Opportunity',
                         message: message 
                     })
                 });
@@ -349,64 +375,6 @@
             } finally {
                 sendBtn.innerHTML = originalText;
                 sendBtn.disabled = false;
-            }
-        }
-
-        // ========== TEST FUNCTION ==========
-        async function testContactDirectly() {
-            alert('Testing contact API... Check console (F12) for details');
-            
-            const token = getToken();
-            console.log('Token exists:', !!token);
-            
-            if (!token) {
-                alert('No token found. Please login again.');
-                return;
-            }
-            
-            try {
-                console.log('Fetching students...');
-                const searchRes = await fetch('/api/recruiter/search', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({})
-                });
-                const searchData = await searchRes.json();
-                console.log('Search result:', searchData);
-                
-                if (searchData.students && searchData.students.length > 0) {
-                    const studentId = searchData.students[0].id;
-                    const studentName = searchData.students[0].full_name;
-                    alert(`Found student: ${studentName}. Now testing contact...`);
-                    
-                    const contactRes = await fetch('/api/recruiter/contact', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            student_id: studentId,
-                            message: 'Test message from test button'
-                        })
-                    });
-                    const contactData = await contactRes.json();
-                    console.log('Contact result:', contactData);
-                    alert('Contact API response:\n' + JSON.stringify(contactData, null, 2));
-                    
-                    if (contactData.success) {
-                        loadStats();
-                        searchCandidates();
-                    }
-                } else {
-                    alert('No students found to contact');
-                }
-            } catch(err) {
-                console.error('Error:', err);
-                alert('Error: ' + err.message);
             }
         }
 
@@ -461,7 +429,15 @@
         if (checkAuth()) { 
             loadStats(); 
             searchCandidates(); 
+            loadUnreadCount();
         }
+        
+        // Refresh unread count every 30 seconds
+        setInterval(() => {
+            if (checkAuth()) {
+                loadUnreadCount();
+            }
+        }, 30000);
     </script>
 </body>
 </html>
