@@ -247,27 +247,23 @@ app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
             return res.status(500).json({ error: 'Failed to load dashboard' });
         }
         
-        // Get skills
         const { data: skills } = await supabase
             .from('student_skills')
             .select('skills(*)')
             .eq('student_id', student.id);
         
-        // Get resume versions
         const { data: resumes } = await supabase
             .from('resume_versions')
             .select('*')
             .eq('student_id', student.id)
             .order('uploaded_at', { ascending: false });
         
-        // Get unread notification count
         const { count: unreadCount } = await supabase
             .from('notifications')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', req.user.id)
             .eq('is_read', false);
         
-        // Get unread message count
         const { count: unreadMessages } = await supabase
             .from('contact_logs')
             .select('*', { count: 'exact', head: true })
@@ -482,7 +478,6 @@ app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'
 
 // ========== STUDENT INBOX ROUTES ==========
 
-// Get all messages for student
 app.get('/api/student/messages', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'student') {
@@ -526,7 +521,6 @@ app.get('/api/student/messages', authenticateToken, async (req, res) => {
     }
 });
 
-// Mark message as read
 app.post('/api/student/mark-read', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'student') {
@@ -559,7 +553,6 @@ app.post('/api/student/mark-read', authenticateToken, async (req, res) => {
     }
 });
 
-// Reply to recruiter message
 app.post('/api/student/reply', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'student') {
@@ -572,7 +565,6 @@ app.post('/api/student/reply', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'Original message ID and reply message are required' });
         }
         
-        // Get original message to find recruiter_id
         const { data: originalMessage, error: msgError } = await supabase
             .from('contact_logs')
             .select('recruiter_id, subject')
@@ -583,7 +575,6 @@ app.post('/api/student/reply', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Original message not found' });
         }
         
-        // Get student
         const { data: student } = await supabase
             .from('students')
             .select('id, full_name, email')
@@ -594,8 +585,6 @@ app.post('/api/student/reply', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Student profile not found' });
         }
         
-        // Save reply in contact_logs (as a new message from student to recruiter)
-        // Note: This creates a reply record. You may want a separate table for replies.
         const { data: reply, error: replyError } = await supabase
             .from('contact_logs')
             .insert({
@@ -615,7 +604,6 @@ app.post('/api/student/reply', authenticateToken, async (req, res) => {
             return res.status(500).json({ error: 'Failed to send reply' });
         }
         
-        // Create notification for recruiter
         const { data: recruiter } = await supabase
             .from('recruiters')
             .select('auth_user_id')
@@ -640,6 +628,121 @@ app.post('/api/student/reply', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Reply error:', error);
         res.status(500).json({ error: 'Failed to send reply' });
+    }
+});
+
+// ========== RECRUITER INBOX ROUTES ==========
+
+app.get('/api/recruiter/messages', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { data: recruiter, error: recruiterError } = await supabase
+            .from('recruiters')
+            .select('id, company_name')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (recruiterError || !recruiter) {
+            return res.status(404).json({ error: 'Recruiter profile not found' });
+        }
+        
+        const { data: messages, error } = await supabase
+            .from('contact_logs')
+            .select(`
+                id,
+                message,
+                subject,
+                contacted_at,
+                is_read,
+                student_id,
+                reply_to_id,
+                students (
+                    id,
+                    full_name,
+                    email,
+                    university_name,
+                    current_city,
+                    current_state
+                )
+            `)
+            .eq('recruiter_id', recruiter.id)
+            .order('contacted_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        res.json({ 
+            success: true, 
+            messages: messages || [],
+            company_name: recruiter.company_name
+        });
+        
+    } catch (error) {
+        console.error('Get recruiter messages error:', error);
+        res.status(500).json({ error: 'Failed to get messages' });
+    }
+});
+
+app.post('/api/recruiter/mark-read', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { message_id } = req.body;
+        
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (!recruiter) {
+            return res.status(404).json({ error: 'Recruiter not found' });
+        }
+        
+        await supabase
+            .from('contact_logs')
+            .update({ is_read: true })
+            .eq('id', message_id)
+            .eq('recruiter_id', recruiter.id);
+        
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('Mark read error:', error);
+        res.status(500).json({ error: 'Failed to mark as read' });
+    }
+});
+
+app.get('/api/recruiter/unread-count', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (!recruiter) {
+            return res.json({ success: true, count: 0 });
+        }
+        
+        const { count } = await supabase
+            .from('contact_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('recruiter_id', recruiter.id)
+            .eq('is_read', false);
+        
+        res.json({ success: true, count: count || 0 });
+        
+    } catch (error) {
+        res.json({ success: true, count: 0 });
     }
 });
 
@@ -834,8 +937,6 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
         res.status(500).json({ error: 'Failed to load student' });
     }
 });
-
-// ========== FIXED CONTACT ROUTE ==========
 
 app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
     try {
@@ -1234,5 +1335,7 @@ app.listen(PORT, () => {
     console.log(`✅ Interview scheduling: ENABLED`);
     console.log(`✅ Notifications: ENABLED`);
     console.log(`✅ Student Inbox: ENABLED`);
-    console.log(`✅ Reply Feature: ENABLED`);
+    console.log(`✅ Student Reply: ENABLED`);
+    console.log(`✅ Recruiter Inbox: ENABLED`);
+    console.log(`✅ Recruiter Reply Notifications: ENABLED`);
 });
