@@ -420,59 +420,88 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
     }
 });
 
+// ========== FIXED RESUME UPLOAD ROUTE ==========
 app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
         if (req.user.role !== 'student') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        const { data: student } = await supabase
+        console.log('📄 Resume upload request from user:', req.user.id);
+        
+        // Get student record
+        const { data: student, error: studentError } = await supabase
             .from('students')
             .select('id')
             .eq('auth_user_id', req.user.id)
             .single();
         
-        if (!student) {
-            return res.status(404).json({ error: 'Student not found' });
+        if (studentError || !student) {
+            console.error('Student fetch error:', studentError);
+            return res.status(404).json({ error: 'Student profile not found. Please complete your profile first.' });
         }
+        
+        console.log('Student found with ID:', student.id);
         
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
         
-        const fileName = Date.now() + '-' + req.file.originalname;
-        const { error: uploadError } = await supabase.storage
+        // Clean filename
+        const cleanFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileName = `${Date.now()}_${req.user.id}_${cleanFileName}`;
+        
+        // Upload to Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
             .from('resumes')
-            .upload(fileName, req.file.buffer);
+            .upload(fileName, req.file.buffer, {
+                contentType: req.file.mimetype,
+                cacheControl: '3600'
+            });
         
         if (uploadError) {
-            return res.status(500).json({ error: 'Upload failed: ' + uploadError.message });
+            console.error('Storage upload error:', uploadError);
+            return res.status(500).json({ error: 'Storage upload failed: ' + uploadError.message });
         }
         
+        console.log('File uploaded to storage:', fileName);
+        
+        // Get public URL
         const { data: urlData } = supabase.storage
             .from('resumes')
             .getPublicUrl(fileName);
         
+        const resume_url = urlData.publicUrl;
+        
+        // Save to resume_versions table
         const { data: resume, error: insertError } = await supabase
             .from('resume_versions')
             .insert({
                 student_id: student.id,
-                resume_url: urlData.publicUrl,
+                resume_url: resume_url,
                 file_name: req.file.originalname,
-                is_active: false
+                is_active: false,
+                uploaded_at: new Date().toISOString()
             })
             .select()
             .single();
         
         if (insertError) {
-            return res.status(500).json({ error: 'Failed to save resume record' });
+            console.error('Database insert error:', insertError);
+            return res.status(500).json({ error: 'Database insert failed: ' + insertError.message });
         }
         
-        res.json({ success: true, resume, message: 'Resume uploaded successfully' });
+        console.log('✅ Resume saved to database, ID:', resume.id);
+        
+        res.json({ 
+            success: true, 
+            resume, 
+            message: 'Resume uploaded successfully' 
+        });
         
     } catch (error) {
         console.error('Upload resume error:', error);
-        res.status(500).json({ error: 'Failed to upload resume' });
+        res.status(500).json({ error: 'Failed to upload resume: ' + error.message });
     }
 });
 
