@@ -78,7 +78,7 @@
             align-items: center;
         }
         .modal.active { display: flex; }
-        .modal-content { background: #1a1f3a; border-radius: 1rem; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; padding: 2rem; }
+        .modal-content { background: #1a1f3a; border-radius: 1rem; max-width: 500px; width: 90%; padding: 2rem; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(102, 126, 234, 0.3); }
         .modal-close { background: none; border: none; font-size: 1.5rem; color: white; cursor: pointer; }
         textarea { width: 100%; padding: 0.75rem; background: #0A0F1E; border: 1px solid #667eea; border-radius: 0.5rem; color: white; margin: 1rem 0; font-family: inherit; }
@@ -169,7 +169,7 @@
         </div>
     </div>
 
-    <!-- Profile Modal (with Resume Download) -->
+    <!-- Profile Modal -->
     <div id="profileModal" class="modal">
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
@@ -211,21 +211,30 @@
             } catch(e) { console.error('Unread count error:', e); }
         }
 
+        // FIXED: loadStats - shows actual credits from database
         async function loadStats() {
             try {
                 const response = await fetch(`${API_URL}/api/recruiter/stats`, {
-                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` },
+                    cache: 'no-store'
                 });
                 const result = await response.json();
+                
                 if (result.success) {
+                    const credits = result.recruiter?.credits || 0;
                     document.getElementById('totalCandidates').innerText = result.totalStudents || 0;
                     document.getElementById('optCandidates').innerText = result.optStudents || 0;
-                    document.getElementById('creditsRemaining').innerText = result.recruiter?.credits || 0;
-                    document.getElementById('myCredits').innerText = result.recruiter?.credits || 0;
+                    document.getElementById('creditsRemaining').innerText = credits;
+                    document.getElementById('myCredits').innerText = credits;
                     document.getElementById('myHires').innerText = result.recruiter?.total_hires || 0;
-                    recruiterData = result.recruiter;
+                    
+                    if (recruiterData) {
+                        recruiterData.credits = credits;
+                    }
                 }
-            } catch(e) { console.error('Stats error:', e); }
+            } catch(e) { 
+                console.error('Stats error:', e); 
+            }
         }
 
         async function searchCandidates() {
@@ -358,12 +367,13 @@
         }
 
         function openContactModal(studentId) {
-            if (recruiterData && recruiterData.credits <= 0) { 
+            const credits = parseInt(document.getElementById('creditsRemaining').innerText) || 0;
+            if (credits <= 0) { 
                 alert('Insufficient credits! Please upgrade your plan.'); 
                 return; 
             }
             selectedStudentId = studentId;
-            document.getElementById('modalCredits').innerText = recruiterData?.credits || 0;
+            document.getElementById('modalCredits').innerText = credits;
             document.getElementById('contactSubject').value = '';
             document.getElementById('contactMessage').value = '';
             document.getElementById('contactModal').classList.add('active');
@@ -377,10 +387,9 @@
             document.getElementById('profileModal').classList.remove('active'); 
         }
 
+        // FIXED: sendContact - updates credits immediately after success
         async function sendContact() {
-            const subject = document.getElementById('contactSubject').value;
             const message = document.getElementById('contactMessage').value;
-            
             if (!message) { 
                 alert('Please enter a message'); 
                 return; 
@@ -400,13 +409,18 @@
                     },
                     body: JSON.stringify({ 
                         student_id: selectedStudentId, 
-                        subject: subject || 'Job Opportunity',
+                        subject: document.getElementById('contactSubject').value || 'Job Opportunity',
                         message: message 
                     })
                 });
                 const result = await response.json();
                 
                 if (result.success) {
+                    const newCredits = result.credits_remaining;
+                    document.getElementById('creditsRemaining').innerText = newCredits;
+                    document.getElementById('myCredits').innerText = newCredits;
+                    if (recruiterData) recruiterData.credits = newCredits;
+                    
                     alert('✅ ' + result.message);
                     closeContactModal();
                     loadStats();
@@ -480,6 +494,7 @@
         setInterval(() => {
             if (checkAuth()) {
                 loadUnreadCount();
+                loadStats();
             }
         }, 30000);
     </script>
