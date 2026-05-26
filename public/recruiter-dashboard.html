@@ -298,7 +298,6 @@
                 if (result.success) {
                     const s = result.student;
                     
-                    // Build resumes HTML
                     let resumesHtml = '';
                     if (s.resumes && s.resumes.length > 0) {
                         resumesHtml = '<div class="resume-list"><strong><i class="fas fa-file-alt"></i> Resumes:</strong><div style="margin-top: 0.5rem;">';
@@ -478,7 +477,6 @@
             loadUnreadCount();
         }
         
-        // Refresh unread count every 30 seconds
         setInterval(() => {
             if (checkAuth()) {
                 loadUnreadCount();
