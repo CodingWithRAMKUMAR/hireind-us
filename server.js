@@ -293,7 +293,6 @@ app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
     }
 });
 
-// ========== UPDATED STUDENT UPDATE ROUTE ==========
 app.post('/api/student/update', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
         if (req.user.role !== 'student') {
@@ -846,7 +845,8 @@ app.post('/api/notifications/mark-read', authenticateToken, async (req, res) => 
     }
 });
 
-// ========== UPDATED RECRUITER SEARCH WITH ALL FILTERS ==========
+// ========== RECRUITER ROUTES ==========
+
 app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
@@ -859,8 +859,6 @@ app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
             job_search_status, graduation_year,
             exp_min, exp_max, experience_gap 
         } = req.body;
-        
-        console.log('🔍 Search filters:', req.body);
         
         let query = supabase
             .from('students')
@@ -903,8 +901,6 @@ app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
         const { data: students, error } = await query;
         if (error) throw error;
         
-        console.log(`📊 Found ${students?.length || 0} students`);
-        
         // Hide contact info
         const hiddenStudents = students?.map(s => ({
             id: s.id,
@@ -932,14 +928,12 @@ app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
     }
 });
 
-// ========== FIXED RECRUITER STATS ROUTE ==========
 app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        // Get recruiter credits from database
         const { data: recruiter, error: recruiterError } = await supabase
             .from('recruiters')
             .select('credits_remaining, total_hires, total_contacts')
@@ -947,7 +941,6 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
             .single();
         
         if (recruiterError) {
-            console.error('Recruiter fetch error:', recruiterError);
             return res.json({
                 success: true,
                 totalStudents: 0,
@@ -969,8 +962,6 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
         
         const actualCredits = recruiter?.credits_remaining !== undefined ? recruiter.credits_remaining : 0;
         
-        console.log(`📊 Stats: User has ${actualCredits} credits`);
-        
         res.json({
             success: true,
             totalStudents: totalStudents || 0,
@@ -988,7 +979,6 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     }
 });
 
-// ========== VIEW STUDENT PROFILE ==========
 app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
@@ -1019,7 +1009,6 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
             .eq('student_id', student.id)
             .order('uploaded_at', { ascending: false });
         
-        // Increment profile view count
         await supabase
             .from('students')
             .update({ profile_view_count: (student.profile_view_count || 0) + 1 })
@@ -1053,8 +1042,7 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
 // ========== CONTACT ROUTE ==========
 app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
     try {
-        console.log('========== CONTACT API CALLED ==========');
-        console.log('User:', req.user.email);
+        console.log('📞 Contact request received');
         
         if (req.user.role !== 'recruiter') {
             return res.status(403).json({ error: 'Access denied' });
@@ -1066,7 +1054,6 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'Student ID required' });
         }
         
-        // Get recruiter details
         const { data: recruiter, error: recruiterError } = await supabase
             .from('recruiters')
             .select('id, credits_remaining, company_name, total_contacts')
@@ -1074,17 +1061,13 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
             .single();
         
         if (recruiterError || !recruiter) {
-            console.error('Recruiter error:', recruiterError);
             return res.status(404).json({ error: 'Recruiter not found' });
         }
-        
-        console.log('Current credits:', recruiter.credits_remaining);
         
         if (recruiter.credits_remaining <= 0) {
             return res.status(402).json({ error: 'No credits remaining' });
         }
         
-        // Get student details
         const { data: student, error: studentError } = await supabase
             .from('students')
             .select('id, auth_user_id')
@@ -1092,29 +1075,19 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
             .single();
         
         if (studentError || !student) {
-            console.error('Student error:', studentError);
             return res.status(404).json({ error: 'Student not found' });
         }
         
-        // Calculate new credits
         const newCredits = recruiter.credits_remaining - 1;
-        const newTotalContacts = (recruiter.total_contacts || 0) + 1;
         
-        // Update recruiter credits
-        const { error: updateError } = await supabase
+        await supabase
             .from('recruiters')
             .update({ 
                 credits_remaining: newCredits,
-                total_contacts: newTotalContacts
+                total_contacts: (recruiter.total_contacts || 0) + 1
             })
             .eq('id', recruiter.id);
         
-        if (updateError) {
-            console.error('Credit update error:', updateError);
-            return res.status(500).json({ error: 'Failed to update credits' });
-        }
-        
-        // Save contact log
         await supabase
             .from('contact_logs')
             .insert({
@@ -1125,7 +1098,6 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
                 is_read: false
             });
         
-        // Send notification to student
         if (student.auth_user_id) {
             await supabase
                 .from('notifications')
@@ -1138,8 +1110,6 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
                 });
         }
         
-        console.log('Contact successful. New credits:', newCredits);
-        
         res.json({ 
             success: true, 
             message: 'Student contacted successfully',
@@ -1148,7 +1118,7 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
         
     } catch (error) {
         console.error('Contact error:', error);
-        res.status(500).json({ error: 'Failed to contact student: ' + error.message });
+        res.status(500).json({ error: 'Failed to contact student' });
     }
 });
 
@@ -1239,6 +1209,165 @@ app.post('/api/recruiter/schedule-interview', authenticateToken, async (req, res
     } catch (error) {
         console.error('Schedule interview error:', error);
         res.status(500).json({ error: 'Failed to schedule interview' });
+    }
+});
+
+// ========== GITHUB SCRAPER ROUTES ==========
+
+// Scrape GitHub users
+app.post('/api/admin/scrape-github', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { location, language, query } = req.body;
+        
+        let searchQuery = 'type:user';
+        if (location) searchQuery += ` location:"${location}"`;
+        if (language) searchQuery += ` language:${language}`;
+        if (query) searchQuery += ` ${query}`;
+        
+        console.log('🔍 GitHub search query:', searchQuery);
+        
+        const response = await fetch(`https://api.github.com/search/users?q=${encodeURIComponent(searchQuery)}&per_page=30`, {
+            headers: {
+                'Authorization': `token ${process.env.GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (!data.items) {
+            return res.status(500).json({ error: 'GitHub API error' });
+        }
+        
+        let addedCount = 0;
+        let updatedCount = 0;
+        
+        for (const user of data.items) {
+            const userResponse = await fetch(`https://api.github.com/users/${user.login}`, {
+                headers: {
+                    'Authorization': `token ${process.env.GITHUB_TOKEN}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+            const userData = await userResponse.json();
+            
+            const email = userData.email || `${user.login}@github.com`;
+            const full_name = userData.name || user.login;
+            const location_github = userData.location || '';
+            const bio = userData.bio || '';
+            const company = userData.company || '';
+            const github_url = userData.html_url;
+            
+            const { data: existing } = await supabase
+                .from('auth_users')
+                .select('id')
+                .eq('email', email)
+                .single();
+            
+            if (existing) {
+                const { data: existingStudent } = await supabase
+                    .from('students')
+                    .select('id')
+                    .eq('auth_user_id', existing.id)
+                    .single();
+                
+                if (existingStudent) {
+                    await supabase
+                        .from('students')
+                        .update({
+                            github_url: github_url,
+                            current_city: location_github || undefined,
+                            bio: bio || undefined,
+                            current_company: company || undefined,
+                            last_active: new Date().toISOString(),
+                            source: 'github_scraper'
+                        })
+                        .eq('id', existingStudent.id);
+                    updatedCount++;
+                }
+            } else {
+                const tempPassword = Math.random().toString(36).slice(-8);
+                const hashedPassword = await bcrypt.hash(tempPassword, 10);
+                
+                const { data: authUser, error: authError } = await supabase
+                    .from('auth_users')
+                    .insert({
+                        email: email,
+                        password_hash: hashedPassword,
+                        full_name: full_name,
+                        role: 'student',
+                        is_verified: true
+                    })
+                    .select()
+                    .single();
+                
+                if (authError) continue;
+                
+                await supabase
+                    .from('students')
+                    .insert({
+                        auth_user_id: authUser.id,
+                        full_name: full_name,
+                        email: email,
+                        github_url: github_url,
+                        current_city: location_github,
+                        bio: bio,
+                        current_company: company,
+                        profile_status: 'active',
+                        is_actively_looking: true,
+                        source: 'github_scraper',
+                        profile_complete: false
+                    });
+                addedCount++;
+            }
+        }
+        
+        await supabase
+            .from('scraping_logs')
+            .insert({
+                source: 'github_api',
+                records_processed: data.items.length,
+                records_added: addedCount,
+                records_updated: updatedCount,
+                status: 'completed',
+                started_at: new Date().toISOString(),
+                completed_at: new Date().toISOString()
+            });
+        
+        res.json({
+            success: true,
+            total: data.items.length,
+            added: addedCount,
+            updated: updatedCount
+        });
+        
+    } catch (error) {
+        console.error('GitHub scraper error:', error);
+        res.status(500).json({ error: 'Scraping failed: ' + error.message });
+    }
+});
+
+// Get scraping logs
+app.get('/api/admin/scraping-logs', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { data: logs } = await supabase
+            .from('scraping_logs')
+            .select('*')
+            .order('started_at', { ascending: false })
+            .limit(20);
+        
+        res.json({ success: true, logs: logs || [] });
+        
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to get logs' });
     }
 });
 
@@ -1391,8 +1520,6 @@ app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) =>
     try {
         const { resumeId } = req.params;
         
-        console.log('📄 Download request for resume:', resumeId);
-        
         const { data: resume, error: resumeError } = await supabase
             .from('resume_versions')
             .select('*')
@@ -1400,19 +1527,18 @@ app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) =>
             .single();
         
         if (resumeError || !resume) {
-            console.error('Resume not found:', resumeError);
             return res.status(404).json({ error: 'Resume not found' });
         }
         
         if (req.user.role === 'recruiter') {
-            const { data: recruiter, error: recruiterError } = await supabase
+            const { data: recruiter } = await supabase
                 .from('recruiters')
                 .select('id')
                 .eq('auth_user_id', req.user.id)
                 .single();
             
-            if (recruiterError || !recruiter) {
-                return res.status(403).json({ error: 'Recruiter profile not found' });
+            if (!recruiter) {
+                return res.status(403).json({ error: 'Recruiter not found' });
             }
             
             const { data: contact } = await supabase
@@ -1431,7 +1557,7 @@ app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) =>
         
     } catch (error) {
         console.error('Download error:', error);
-        res.status(500).json({ error: 'Failed to get resume: ' + error.message });
+        res.status(500).json({ error: 'Failed to get resume' });
     }
 });
 
@@ -1444,4 +1570,5 @@ app.get('/api/health', (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`✅ All features: ENABLED`);
+    console.log(`✅ GitHub Scraper: ENABLED`);
 });
