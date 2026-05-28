@@ -47,7 +47,7 @@
         .card-actions { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; }
         .view-btn { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); padding: 0.6rem; border-radius: 0.5rem; color: white; cursor: pointer; }
         .contact-btn { flex: 1; background: linear-gradient(135deg, #667eea, #764ba2); border: none; padding: 0.6rem; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; }
-        .contact-btn.disabled { opacity: 0.5; cursor: not-allowed; }
+        .contact-btn.disabled { opacity: 0.5; cursor: not-allowed; background: #4a5568; }
         .hire-btn { background: rgba(72, 187, 120, 0.2); border: 1px solid #48bb78; padding: 0.6rem 1rem; border-radius: 0.5rem; color: #48bb78; cursor: pointer; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.95); backdrop-filter: blur(8px); z-index: 2000; justify-content: center; align-items: center; }
         .modal.active { display: flex; }
@@ -55,6 +55,10 @@
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(102, 126, 234, 0.3); }
         .modal-close { background: none; border: none; font-size: 1.5rem; color: white; cursor: pointer; }
         textarea { width: 100%; padding: 0.75rem; background: #0A0F1E; border: 1px solid #667eea; border-radius: 0.5rem; color: white; margin: 1rem 0; font-family: inherit; }
+        .resume-list { margin-top: 1rem; }
+        .resume-item { background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+        .download-resume-btn { background: #48bb78; border: none; padding: 0.25rem 0.75rem; border-radius: 0.25rem; color: white; cursor: pointer; font-size: 0.75rem; }
+        .download-resume-btn:hover { background: #38a169; }
         .loading { text-align: center; padding: 2rem; }
         .spinner { width: 40px; height: 40px; border: 3px solid rgba(102, 126, 234, 0.2); border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -153,6 +157,12 @@
                     document.getElementById('myCredits').innerText = credits;
                     document.getElementById('myHires').innerText = result.recruiter?.total_hires || 0;
                     
+                    // Also update modal if it's open
+                    const modalCreditsSpan = document.getElementById('modalCredits');
+                    if (modalCreditsSpan) {
+                        modalCreditsSpan.innerText = credits;
+                    }
+                    
                     if (recruiterData) recruiterData.credits = credits;
                     
                     // Disable contact buttons if no credits
@@ -182,7 +192,7 @@
                 const result = await response.json();
                 if (result.success && result.students) { displayStudents(result.students); }
                 else { resultsDiv.innerHTML = '<p style="text-align:center; padding:2rem;">No candidates found</p>'; }
-                await loadStats(); // Refresh stats after search
+                await loadStats();
             } catch(e) { resultsDiv.innerHTML = '<p style="text-align:center; padding:2rem; color:#f56565;">Error loading candidates</p>'; }
         }
 
@@ -256,11 +266,21 @@
             } catch(e) { alert('Network error'); }
         }
 
+        // FIXED: Get real-time credits from display
         function openContactModal(studentId) {
-            const credits = parseInt(document.getElementById('creditsRemaining').innerText) || 0;
-            if (credits <= 0) { alert('No credits remaining! Please purchase more credits.'); return; }
+            const creditsSpan = document.getElementById('creditsRemaining');
+            const credits = parseInt(creditsSpan.innerText) || 0;
+            
+            console.log('Opening modal with credits:', credits);
+            
+            if (credits <= 0) { 
+                alert('No credits remaining! You have 0 credits left.'); 
+                return; 
+            }
+            
             selectedStudentId = studentId;
             document.getElementById('modalCredits').innerText = credits;
+            document.getElementById('contactSubject').value = '';
             document.getElementById('contactMessage').value = '';
             document.getElementById('contactModal').classList.add('active');
         }
@@ -298,7 +318,7 @@
                     alert('✅ ' + result.message);
                     closeContactModal();
                     
-                    // Force refresh of stats and student list
+                    // Force refresh
                     await loadStats();
                     await searchCandidates();
                 } else {
