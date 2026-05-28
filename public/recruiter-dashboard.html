@@ -60,7 +60,7 @@
         .student-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem; }
         .student-details { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
         .detail-badge { background: rgba(255,255,255,0.05); padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.7rem; }
-        .card-actions { display: flex; gap: 0.75rem; margin-top: 1rem; }
+        .card-actions { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; }
         .view-btn { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); padding: 0.6rem; border-radius: 0.5rem; color: white; cursor: pointer; }
         .contact-btn { flex: 1; background: linear-gradient(135deg, #667eea, #764ba2); border: none; padding: 0.6rem; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; }
         .hire-btn { background: rgba(72, 187, 120, 0.2); border: 1px solid #48bb78; padding: 0.6rem 1rem; border-radius: 0.5rem; color: #48bb78; cursor: pointer; }
@@ -82,6 +82,20 @@
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(102, 126, 234, 0.3); }
         .modal-close { background: none; border: none; font-size: 1.5rem; color: white; cursor: pointer; }
         textarea { width: 100%; padding: 0.75rem; background: #0A0F1E; border: 1px solid #667eea; border-radius: 0.5rem; color: white; margin: 1rem 0; font-family: inherit; }
+        .resume-list { margin-top: 1rem; }
+        .resume-item {
+            background: rgba(255,255,255,0.05);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .download-resume-btn { background: #48bb78; border: none; padding: 0.25rem 0.75rem; border-radius: 0.25rem; color: white; cursor: pointer; font-size: 0.75rem; }
+        .download-resume-btn:hover { background: #38a169; }
         .loading { text-align: center; padding: 2rem; }
         .spinner {
             width: 40px;
@@ -126,10 +140,6 @@
                     <option value="MA">Massachusetts</option>
                     <option value="WA">Washington</option>
                     <option value="IL">Illinois</option>
-                    <option value="GA">Georgia</option>
-                    <option value="NC">North Carolina</option>
-                    <option value="VA">Virginia</option>
-                    <option value="FL">Florida</option>
                 </select>
                 <select id="visaFilter">
                     <option value="">All Visas</option>
@@ -201,21 +211,30 @@
             } catch(e) { console.error('Unread count error:', e); }
         }
 
+        // FIXED: loadStats - shows actual credits from database
         async function loadStats() {
             try {
                 const response = await fetch(`${API_URL}/api/recruiter/stats`, {
-                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` },
+                    cache: 'no-store'
                 });
                 const result = await response.json();
+                
                 if (result.success) {
+                    const credits = result.recruiter?.credits || 0;
                     document.getElementById('totalCandidates').innerText = result.totalStudents || 0;
                     document.getElementById('optCandidates').innerText = result.optStudents || 0;
-                    document.getElementById('creditsRemaining').innerText = result.recruiter?.credits || 0;
-                    document.getElementById('myCredits').innerText = result.recruiter?.credits || 0;
+                    document.getElementById('creditsRemaining').innerText = credits;
+                    document.getElementById('myCredits').innerText = credits;
                     document.getElementById('myHires').innerText = result.recruiter?.total_hires || 0;
-                    recruiterData = result.recruiter;
+                    
+                    if (recruiterData) {
+                        recruiterData.credits = credits;
+                    }
                 }
-            } catch(e) { console.error('Stats error:', e); }
+            } catch(e) { 
+                console.error('Stats error:', e); 
+            }
         }
 
         async function searchCandidates() {
@@ -265,7 +284,7 @@
                         <span class="detail-badge"><i class="fas fa-eye"></i> ${s.profile_view_count || 0} views</span>
                     </div>
                     <div class="card-actions">
-                        <button class="view-btn" onclick="viewFullProfile('${s.id}')"><i class="fas fa-eye"></i> View</button>
+                        <button class="view-btn" onclick="viewFullProfile('${s.id}')"><i class="fas fa-eye"></i> View Profile</button>
                         <button class="contact-btn" onclick="openContactModal('${s.id}')"><i class="fas fa-envelope"></i> Contact</button>
                         <button class="hire-btn" onclick="markAsHired('${s.id}')"><i class="fas fa-check"></i> Hire</button>
                     </div>
@@ -287,20 +306,39 @@
                 const result = await response.json();
                 if (result.success) {
                     const s = result.student;
+                    
+                    let resumesHtml = '';
+                    if (s.resumes && s.resumes.length > 0) {
+                        resumesHtml = '<div class="resume-list"><strong><i class="fas fa-file-alt"></i> Resumes:</strong><div style="margin-top: 0.5rem;">';
+                        s.resumes.forEach(resume => {
+                            resumesHtml += `
+                                <div class="resume-item">
+                                    <span><i class="fas fa-file-pdf"></i> ${escapeHtml(resume.file_name || 'Resume')}</span>
+                                    <span>Uploaded: ${new Date(resume.uploaded_at).toLocaleDateString()}</span>
+                                    <button class="download-resume-btn" onclick="downloadResume('${resume.id}')"><i class="fas fa-download"></i> Download</button>
+                                </div>
+                            `;
+                        });
+                        resumesHtml += '</div></div>';
+                    } else {
+                        resumesHtml = '<div class="resume-list"><strong><i class="fas fa-file-alt"></i> Resumes:</strong><p style="margin-top: 0.5rem; color: rgba(255,255,255,0.5);">No resumes uploaded yet.</p></div>';
+                    }
+                    
                     content.innerHTML = `
                         <h4>${escapeHtml(s.full_name)}</h4>
                         <p style="color:#667eea;">${s.university_name || 'University'}</p>
-                        <div class="student-details" style="flex-direction:column;">
+                        <div class="student-details" style="flex-direction:column; margin: 1rem 0;">
                             <span><i class="fas fa-map-marker-alt"></i> ${s.current_city || 'N/A'}, ${s.current_state || 'N/A'}</span>
                             <span><i class="fas fa-passport"></i> ${formatVisa(s.visa_type)}</span>
                             <span><i class="fas fa-calendar"></i> Graduation: ${s.graduation_date || 'N/A'}</span>
-                            <span><i class="fas fa-envelope"></i> Email: ${s.email || 'Hidden - use Contact'}</span>
-                            <span><i class="fas fa-phone"></i> Phone: ${s.phone || 'Hidden - use Contact'}</span>
+                            <span><i class="fas fa-envelope"></i> Email: ${s.email || 'Not provided'}</span>
+                            <span><i class="fas fa-phone"></i> Phone: ${s.phone || 'Not provided'}</span>
                             ${s.linkedin_url ? `<span><i class="fab fa-linkedin"></i> <a href="${s.linkedin_url}" target="_blank" style="color:#667eea;">LinkedIn</a></span>` : ''}
                             ${s.github_url ? `<span><i class="fab fa-github"></i> <a href="${s.github_url}" target="_blank" style="color:#667eea;">GitHub</a></span>` : ''}
                         </div>
-                        <div style="margin-top:1rem;"><strong>Skills:</strong> ${s.skills?.join(', ') || 'None listed'}</div>
-                        <div class="card-actions" style="margin-top:1.5rem;">
+                        <div style="margin: 1rem 0;"><strong>Skills:</strong> ${s.skills?.join(', ') || 'None listed'}</div>
+                        ${resumesHtml}
+                        <div class="card-actions" style="margin-top: 1.5rem;">
                             <button class="contact-btn" onclick="closeProfileModal(); openContactModal('${studentId}')">Contact (1 Credit)</button>
                             <button class="hire-btn" onclick="closeProfileModal(); markAsHired('${studentId}')">Mark as Hired</button>
                         </div>
@@ -312,13 +350,30 @@
             }
         }
 
+        async function downloadResume(resumeId) {
+            try {
+                const response = await fetch(`${API_URL}/api/download-resume/${resumeId}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const result = await response.json();
+                if (result.success && result.download_url) {
+                    window.open(result.download_url, '_blank');
+                } else {
+                    alert('❌ ' + (result.error || 'You must contact the student first to download resume'));
+                }
+            } catch(e) {
+                alert('❌ Network error: ' + e.message);
+            }
+        }
+
         function openContactModal(studentId) {
-            if (recruiterData && recruiterData.credits <= 0) { 
+            const credits = parseInt(document.getElementById('creditsRemaining').innerText) || 0;
+            if (credits <= 0) { 
                 alert('Insufficient credits! Please upgrade your plan.'); 
                 return; 
             }
             selectedStudentId = studentId;
-            document.getElementById('modalCredits').innerText = recruiterData?.credits || 0;
+            document.getElementById('modalCredits').innerText = credits;
             document.getElementById('contactSubject').value = '';
             document.getElementById('contactMessage').value = '';
             document.getElementById('contactModal').classList.add('active');
@@ -332,10 +387,9 @@
             document.getElementById('profileModal').classList.remove('active'); 
         }
 
+        // FIXED: sendContact - updates credits immediately after success
         async function sendContact() {
-            const subject = document.getElementById('contactSubject').value;
             const message = document.getElementById('contactMessage').value;
-            
             if (!message) { 
                 alert('Please enter a message'); 
                 return; 
@@ -355,13 +409,18 @@
                     },
                     body: JSON.stringify({ 
                         student_id: selectedStudentId, 
-                        subject: subject || 'Job Opportunity',
+                        subject: document.getElementById('contactSubject').value || 'Job Opportunity',
                         message: message 
                     })
                 });
                 const result = await response.json();
                 
                 if (result.success) {
+                    const newCredits = result.credits_remaining;
+                    document.getElementById('creditsRemaining').innerText = newCredits;
+                    document.getElementById('myCredits').innerText = newCredits;
+                    if (recruiterData) recruiterData.credits = newCredits;
+                    
                     alert('✅ ' + result.message);
                     closeContactModal();
                     loadStats();
@@ -432,10 +491,10 @@
             loadUnreadCount();
         }
         
-        // Refresh unread count every 30 seconds
         setInterval(() => {
             if (checkAuth()) {
                 loadUnreadCount();
+                loadStats();
             }
         }, 30000);
     </script>
