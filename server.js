@@ -875,17 +875,30 @@ app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
     }
 });
 
+// ========== FIXED RECRUITER STATS ROUTE (Returns actual database credits) ==========
 app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        const { data: recruiter } = await supabase
+        // Get ACTUAL credits from database - no default value
+        const { data: recruiter, error: recruiterError } = await supabase
             .from('recruiters')
-            .select('*')
+            .select('credits_remaining, total_hires, total_contacts')
             .eq('auth_user_id', req.user.id)
             .single();
+        
+        if (recruiterError) {
+            console.error('Recruiter stats error:', recruiterError);
+            // If no recruiter found, return zeros
+            return res.json({
+                success: true,
+                totalStudents: 0,
+                optStudents: 0,
+                recruiter: { credits: 0, total_hires: 0, total_contacts: 0 }
+            });
+        }
         
         const { count: totalStudents } = await supabase
             .from('students')
@@ -898,12 +911,17 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
             .in('visa_type', ['OPT_1st_year', 'OPT_2nd_year', 'STEM_OPT'])
             .eq('profile_status', 'active');
         
+        // Use the actual credits from database
+        const actualCredits = recruiter?.credits_remaining !== undefined ? recruiter.credits_remaining : 0;
+        
+        console.log(`📊 Stats: User ${req.user.email} has ${actualCredits} credits`);
+        
         res.json({
             success: true,
             totalStudents: totalStudents || 0,
             optStudents: optStudents || 0,
             recruiter: {
-                credits: recruiter?.credits_remaining || 10,
+                credits: actualCredits,
                 total_hires: recruiter?.total_hires || 0,
                 total_contacts: recruiter?.total_contacts || 0
             }
@@ -915,6 +933,7 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     }
 });
 
+// ========== VIEW STUDENT PROFILE ==========
 app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
@@ -975,7 +994,7 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
     }
 });
 
-// ========== CONTACT ROUTE (COMPLETELY REWRITTEN - WILL DEFINITELY WORK) ==========
+// ========== CONTACT ROUTE (Preserved from your working code) ==========
 app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
     try {
         console.log('========== CONTACT API CALLED ==========');
