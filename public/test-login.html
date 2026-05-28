@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Login</title></head>
+<body>
+    <h2>Test Admin Login</h2>
+    <button onclick="testLogin()">Test Login</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testLogin() {
+            const result = document.getElementById('result');
+            result.innerText = 'Testing...';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'admin@hireind.com',
+                        password: 'admin123'
+                    })
+                });
+                
+                const data = await response.json();
+                result.innerText = JSON.stringify(data, null, 2);
+                
+                if (data.success) {
+                    localStorage.setItem('token', data.token);
+                    alert('Login successful! Redirecting...');
+                    window.location.href = '/admin-dashboard.html';
+                }
+            } catch(e) {
+                result.innerText = 'Error: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
