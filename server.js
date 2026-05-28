@@ -11,13 +11,13 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Supabase Client
+// Supabase Client (Regular - for most operations)
 const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_ANON_KEY
 );
 
-// Supabase Admin Client (for storage)
+// Supabase Admin Client (Service Role - for storage uploads)
 const supabaseAdmin = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -29,23 +29,39 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
+// Serve login page as default
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// Multer
+// ========== MULTER CONFIGURATION ==========
 const storage = multer.memoryStorage();
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ 
+    storage: storage, 
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 // ========== AUTH MIDDLEWARE ==========
 const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Access token required' });
+    
+    if (!token) {
+        return res.status(401).json({ error: 'Access token required' });
+    }
+    
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const { data: user, error } = await supabase.from('auth_users').select('*').eq('id', decoded.userId).single();
-        if (error || !user) return res.status(401).json({ error: 'Invalid token' });
+        const { data: user, error } = await supabase
+            .from('auth_users')
+            .select('*')
+            .eq('id', decoded.userId)
+            .single();
+        
+        if (error || !user) {
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+        
         req.user = user;
         next();
     } catch (error) {
@@ -57,201 +73,537 @@ function generateToken(userId) {
     return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 }
 
-// ========== REGISTER ==========
+// ========== AUTH ROUTES ==========
+
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { email, password, full_name, role } = req.body;
-        const { data: existing } = await supabase.from('auth_users').select('email').eq('email', email).single();
-        if (existing) return res.status(400).json({ error: 'Email already registered' });
+        
+        const { data: existing } = await supabase
+            .from('auth_users')
+            .select('email')
+            .eq('email', email)
+            .single();
+        
+        if (existing) {
+            return res.status(400).json({ error: 'Email already registered' });
+        }
         
         const hashedPassword = await bcrypt.hash(password, 10);
-        const { data: authUser, error: authError } = await supabase.from('auth_users').insert({
-            email, password_hash: hashedPassword, full_name, role, is_verified: true
-        }).select().single();
+        
+        const { data: authUser, error: authError } = await supabase
+            .from('auth_users')
+            .insert({
+                email,
+                password_hash: hashedPassword,
+                full_name,
+                role,
+                is_verified: true
+            })
+            .select()
+            .single();
+        
         if (authError) throw authError;
         
         if (role === 'student') {
-            await supabase.from('students').insert({ auth_user_id: authUser.id, full_name, email, profile_status: 'active', is_actively_looking: true, profile_complete: false, source: 'manual', profile_view_count: 0 });
+            await supabase
+                .from('students')
+                .insert({ 
+                    auth_user_id: authUser.id, 
+                    full_name,
+                    email,
+                    profile_status: 'active',
+                    is_actively_looking: true,
+                    profile_complete: false,
+                    source: 'manual',
+                    profile_view_count: 0
+                });
         } else if (role === 'recruiter') {
-            await supabase.from('recruiters').insert({ auth_user_id: authUser.id, company_name: 'New Company', credits_remaining: 10, total_contacts: 0, total_hires: 0 });
+            await supabase
+                .from('recruiters')
+                .insert({ 
+                    auth_user_id: authUser.id, 
+                    company_name: 'New Company',
+                    credits_remaining: 10,
+                    total_contacts: 0,
+                    total_hires: 0
+                });
         }
         
         const token = generateToken(authUser.id);
-        res.json({ success: true, token, user: { id: authUser.id, email: authUser.email, full_name: authUser.full_name, role: authUser.role } });
+        
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: authUser.id,
+                email: authUser.email,
+                full_name: authUser.full_name,
+                role: authUser.role
+            }
+        });
+        
     } catch (error) {
+        console.error('Register error:', error);
         res.status(500).json({ error: 'Registration failed: ' + error.message });
     }
 });
 
-// ========== LOGIN ==========
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        const { data: user, error } = await supabase.from('auth_users').select('*').eq('email', email).single();
-        if (error || !user) return res.status(401).json({ error: 'Invalid email or password' });
+        
+        const { data: user, error } = await supabase
+            .from('auth_users')
+            .select('*')
+            .eq('email', email)
+            .single();
+        
+        if (error || !user) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        
         const validPassword = await bcrypt.compare(password, user.password_hash);
-        if (!validPassword) return res.status(401).json({ error: 'Invalid email or password' });
+        if (!validPassword) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        
         const token = generateToken(user.id);
-        res.json({ success: true, token, user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role } });
+        
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                full_name: user.full_name,
+                role: user.role
+            }
+        });
+        
     } catch (error) {
+        console.error('Login error:', error);
         res.status(500).json({ error: 'Login failed' });
     }
 });
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
     let profile = null;
+    
     if (req.user.role === 'student') {
-        const { data } = await supabase.from('students').select('*').eq('auth_user_id', req.user.id).single();
+        const { data } = await supabase
+            .from('students')
+            .select('*')
+            .eq('auth_user_id', req.user.id)
+            .single();
         profile = data;
     } else if (req.user.role === 'recruiter') {
-        const { data } = await supabase.from('recruiters').select('*').eq('auth_user_id', req.user.id).single();
+        const { data } = await supabase
+            .from('recruiters')
+            .select('*')
+            .eq('auth_user_id', req.user.id)
+            .single();
         profile = data;
     }
-    res.json({ success: true, user: req.user, profile });
+    
+    res.json({ 
+        success: true, 
+        user: req.user,
+        profile
+    });
 });
 
-// ========== STUDENT DASHBOARD ==========
+// ========== STUDENT ROUTES ==========
+
 app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'student') return res.status(403).json({ error: 'Access denied' });
-        
-        let { data: student, error } = await supabase.from('students').select('*').eq('auth_user_id', req.user.id).single();
-        if (error && error.code === 'PGRST116') {
-            const { data: newStudent } = await supabase.from('students').insert({
-                auth_user_id: req.user.id, full_name: req.user.full_name, email: req.user.email,
-                profile_status: 'active', is_actively_looking: true, profile_complete: false, source: 'manual', profile_view_count: 0
-            }).select().single();
-            student = newStudent;
+        if (req.user.role !== 'student') {
+            return res.status(403).json({ error: 'Access denied' });
         }
         
-        const { data: skills } = await supabase.from('student_skills').select('skills(*)').eq('student_id', student.id);
-        const { data: resumes } = await supabase.from('resume_versions').select('*').eq('student_id', student.id).order('uploaded_at', { ascending: false });
-        const { count: unreadCount } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', req.user.id).eq('is_read', false);
-        const { count: unreadMessages } = await supabase.from('contact_logs').select('*', { count: 'exact', head: true }).eq('student_id', student.id).eq('is_read', false);
+        let { data: student, error } = await supabase
+            .from('students')
+            .select('*')
+            .eq('auth_user_id', req.user.id)
+            .single();
         
-        res.json({ success: true, student, stats: { profile_views: student.profile_view_count || 0, recruiter_contacts: 0, unread_notifications: unreadCount || 0, unread_messages: unreadMessages || 0 }, skills: skills?.map(s => s.skills) || [], resumes: resumes || [] });
+        if (error && error.code === 'PGRST116') {
+            const { data: newStudent, error: insertError } = await supabase
+                .from('students')
+                .insert({
+                    auth_user_id: req.user.id,
+                    full_name: req.user.full_name,
+                    email: req.user.email,
+                    profile_status: 'active',
+                    is_actively_looking: true,
+                    profile_complete: false,
+                    source: 'manual',
+                    profile_view_count: 0
+                })
+                .select()
+                .single();
+            
+            if (insertError) {
+                return res.status(500).json({ error: 'Failed to create profile' });
+            }
+            student = newStudent;
+        } else if (error) {
+            return res.status(500).json({ error: 'Failed to load dashboard' });
+        }
+        
+        const { data: skills } = await supabase
+            .from('student_skills')
+            .select('skills(*)')
+            .eq('student_id', student.id);
+        
+        const { data: resumes } = await supabase
+            .from('resume_versions')
+            .select('*')
+            .eq('student_id', student.id)
+            .order('uploaded_at', { ascending: false });
+        
+        const { count: unreadCount } = await supabase
+            .from('notifications')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', req.user.id)
+            .eq('is_read', false);
+        
+        const { count: unreadMessages } = await supabase
+            .from('contact_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('student_id', student.id)
+            .eq('is_read', false);
+        
+        res.json({
+            success: true,
+            student,
+            stats: {
+                profile_views: student.profile_view_count || 0,
+                recruiter_contacts: 0,
+                unread_notifications: unreadCount || 0,
+                unread_messages: unreadMessages || 0
+            },
+            skills: skills?.map(s => s.skills) || [],
+            resumes: resumes || []
+        });
+        
     } catch (error) {
-        res.status(500).json({ error: 'Failed to load dashboard' });
+        console.error('Dashboard error:', error);
+        res.status(500).json({ error: 'Failed to load dashboard: ' + error.message });
     }
 });
 
-// ========== STUDENT UPDATE ==========
 app.post('/api/student/update', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
-        if (req.user.role !== 'student') return res.status(403).json({ error: 'Access denied' });
+        if (req.user.role !== 'student') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
         
-        let { data: existingStudent, error: fetchError } = await supabase.from('students').select('id').eq('auth_user_id', req.user.id).single();
+        let { data: existingStudent, error: fetchError } = await supabase
+            .from('students')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
         if (fetchError && fetchError.code === 'PGRST116') {
-            const { data: newStudent } = await supabase.from('students').insert({
-                auth_user_id: req.user.id, full_name: req.user.full_name, email: req.user.email,
-                profile_status: 'active', is_actively_looking: true, profile_complete: false, source: 'manual', profile_view_count: 0
-            }).select().single();
+            const { data: newStudent, error: createError } = await supabase
+                .from('students')
+                .insert({
+                    auth_user_id: req.user.id,
+                    full_name: req.user.full_name,
+                    email: req.user.email,
+                    profile_status: 'active',
+                    is_actively_looking: true,
+                    profile_complete: false,
+                    source: 'manual',
+                    profile_view_count: 0
+                })
+                .select()
+                .single();
+            
+            if (createError) {
+                return res.status(500).json({ error: 'Failed to create profile: ' + createError.message });
+            }
             existingStudent = newStudent;
+        } else if (fetchError) {
+            return res.status(500).json({ error: 'Database error: ' + fetchError.message });
         }
         
         let resume_url = null;
         if (req.file) {
             const fileBuffer = req.file.buffer;
-            if (fileBuffer.length === 0) return res.status(400).json({ error: 'File is empty' });
+            
+            if (fileBuffer.length === 0) {
+                return res.status(400).json({ error: 'Uploaded file is empty' });
+            }
+            
             const cleanFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
             const fileName = `${Date.now()}_${req.user.id}_${cleanFileName}`;
-            await supabaseAdmin.storage.from('resumes').upload(fileName, fileBuffer, { contentType: 'application/pdf' });
-            const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(fileName);
-            resume_url = urlData.publicUrl;
-            await supabase.from('resume_versions').insert({ student_id: existingStudent.id, resume_url, file_name: req.file.originalname, is_active: true });
-            await supabase.from('resume_versions').update({ is_active: false }).eq('student_id', existingStudent.id).neq('resume_url', resume_url);
+            
+            const { error: uploadError } = await supabaseAdmin.storage
+                .from('resumes')
+                .upload(fileName, fileBuffer, {
+                    contentType: req.file.mimetype || 'application/pdf',
+                    cacheControl: '3600'
+                });
+            
+            if (!uploadError) {
+                const { data: urlData } = supabase.storage
+                    .from('resumes')
+                    .getPublicUrl(fileName);
+                resume_url = urlData.publicUrl;
+                
+                await supabase
+                    .from('resume_versions')
+                    .insert({
+                        student_id: existingStudent.id,
+                        resume_url: resume_url,
+                        file_name: req.file.originalname,
+                        is_active: true
+                    });
+                
+                await supabase
+                    .from('resume_versions')
+                    .update({ is_active: false })
+                    .eq('student_id', existingStudent.id)
+                    .neq('resume_url', resume_url);
+            }
         }
         
         const updateData = {};
-        if (req.body.full_name) updateData.full_name = req.body.full_name;
+        if (req.body.full_name && req.body.full_name !== '') updateData.full_name = req.body.full_name;
         if (req.body.phone !== undefined) updateData.phone = req.body.phone;
-        if (req.body.current_city) updateData.current_city = req.body.current_city;
-        if (req.body.current_state) updateData.current_state = req.body.current_state;
-        if (req.body.university_name) updateData.university_name = req.body.university_name;
-        if (req.body.graduation_date) updateData.graduation_date = req.body.graduation_date;
-        if (req.body.visa_type) updateData.visa_type = req.body.visa_type;
+        if (req.body.current_city !== undefined) updateData.current_city = req.body.current_city;
+        if (req.body.current_state !== undefined) updateData.current_state = req.body.current_state;
+        if (req.body.university_name !== undefined) updateData.university_name = req.body.university_name;
+        if (req.body.graduation_date && req.body.graduation_date !== '') updateData.graduation_date = req.body.graduation_date;
+        if (req.body.visa_type !== undefined) updateData.visa_type = req.body.visa_type;
         if (req.body.linkedin_url !== undefined) updateData.linkedin_url = req.body.linkedin_url;
         if (req.body.github_url !== undefined) updateData.github_url = req.body.github_url;
         if (resume_url) updateData.resume_url = resume_url;
+        
         updateData.is_actively_looking = (req.body.is_actively_looking === 'on' || req.body.is_actively_looking === true);
         updateData.profile_complete = true;
+        updateData.last_active = new Date().toISOString();
         
-        const { data: student } = await supabase.from('students').update(updateData).eq('id', existingStudent.id).select().single();
+        const { data: student, error: updateError } = await supabase
+            .from('students')
+            .update(updateData)
+            .eq('id', existingStudent.id)
+            .select()
+            .single();
         
-        if (req.body.skills) {
-            const skillNames = req.body.skills.split(',').map(s => s.trim()).filter(s => s);
-            await supabase.from('student_skills').delete().eq('student_id', student.id);
+        if (updateError) {
+            return res.status(500).json({ error: 'Failed to update: ' + updateError.message });
+        }
+        
+        if (req.body.skills && req.body.skills.trim() !== '') {
+            const skillNames = req.body.skills.split(',').map(s => s.trim()).filter(s => s !== '');
+            
+            await supabase
+                .from('student_skills')
+                .delete()
+                .eq('student_id', student.id);
+            
             for (const skillName of skillNames) {
-                let { data: skill } = await supabase.from('skills').select('id').eq('skill_name', skillName).single();
+                let { data: skill } = await supabase
+                    .from('skills')
+                    .select('id')
+                    .eq('skill_name', skillName)
+                    .single();
+                
                 if (!skill) {
-                    const { data: newSkill } = await supabase.from('skills').insert({ skill_name: skillName }).select();
-                    skill = newSkill[0];
+                    const { data: newSkill } = await supabase
+                        .from('skills')
+                        .insert({ skill_name: skillName })
+                        .select();
+                    if (newSkill && newSkill.length > 0) skill = newSkill[0];
                 }
-                await supabase.from('student_skills').insert({ student_id: student.id, skill_id: skill.id });
+                
+                if (skill) {
+                    await supabase
+                        .from('student_skills')
+                        .insert({ student_id: student.id, skill_id: skill.id });
+                }
             }
         }
         
         res.json({ success: true, student, message: 'Profile updated successfully' });
+        
     } catch (error) {
-        res.status(500).json({ error: 'Failed to update profile' });
+        console.error('Update profile error:', error);
+        res.status(500).json({ error: 'Failed to update profile: ' + error.message });
     }
 });
 
-// ========== RESUME UPLOAD ==========
+// ========== RESUME UPLOAD ROUTE ==========
 app.post('/api/student/upload-resume', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
-        if (req.user.role !== 'student') return res.status(403).json({ error: 'Access denied' });
-        const { data: student } = await supabase.from('students').select('id').eq('auth_user_id', req.user.id).single();
-        if (!student) return res.status(404).json({ error: 'Student not found' });
-        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-        if (req.file.mimetype !== 'application/pdf') return res.status(400).json({ error: 'Only PDF files allowed' });
+        if (req.user.role !== 'student') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { data: student, error: studentError } = await supabase
+            .from('students')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (studentError || !student) {
+            return res.status(404).json({ error: 'Student profile not found' });
+        }
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        
+        const fileBuffer = req.file.buffer;
+        
+        if (fileBuffer.length === 0) {
+            return res.status(400).json({ error: 'File is empty' });
+        }
+        
+        if (req.file.mimetype !== 'application/pdf') {
+            return res.status(400).json({ error: 'Only PDF files are allowed' });
+        }
         
         const cleanFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
         const fileName = `${Date.now()}_${req.user.id}_${cleanFileName}`;
-        await supabaseAdmin.storage.from('resumes').upload(fileName, req.file.buffer, { contentType: 'application/pdf' });
-        const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(fileName);
         
-        await supabase.from('resume_versions').update({ is_active: false }).eq('student_id', student.id);
-        const { data: resume } = await supabase.from('resume_versions').insert({
-            student_id: student.id, resume_url: urlData.publicUrl, file_name: req.file.originalname, is_active: true, uploaded_at: new Date().toISOString()
-        }).select().single();
+        const { error: uploadError } = await supabaseAdmin.storage
+            .from('resumes')
+            .upload(fileName, fileBuffer, {
+                contentType: 'application/pdf',
+                cacheControl: '3600'
+            });
+        
+        if (uploadError) {
+            console.error('Storage upload error:', uploadError);
+            return res.status(500).json({ error: 'Storage upload failed: ' + uploadError.message });
+        }
+        
+        const { data: urlData } = supabase.storage
+            .from('resumes')
+            .getPublicUrl(fileName);
+        
+        const resume_url = urlData.publicUrl;
+        
+        await supabase
+            .from('resume_versions')
+            .update({ is_active: false })
+            .eq('student_id', student.id);
+        
+        const { data: resume, error: insertError } = await supabase
+            .from('resume_versions')
+            .insert({
+                student_id: student.id,
+                resume_url: resume_url,
+                file_name: req.file.originalname,
+                is_active: true,
+                uploaded_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+        
+        if (insertError) {
+            return res.status(500).json({ error: 'Failed to save resume record' });
+        }
         
         res.json({ success: true, resume, message: 'Resume uploaded successfully' });
+        
     } catch (error) {
-        res.status(500).json({ error: 'Upload failed' });
+        console.error('Upload error:', error);
+        res.status(500).json({ error: 'Upload failed: ' + error.message });
     }
 });
 
-// ========== DELETE RESUME ==========
+// ========== DELETE RESUME ROUTE ==========
 app.delete('/api/student/delete-resume/:resumeId', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'student') return res.status(403).json({ error: 'Access denied' });
-        const { resumeId } = req.params;
-        const { data: resume, error: fetchError } = await supabase.from('resume_versions').select('*, students!inner(auth_user_id)').eq('id', resumeId).eq('students.auth_user_id', req.user.id).single();
-        if (fetchError || !resume) return res.status(404).json({ error: 'Resume not found' });
+        if (req.user.role !== 'student') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
         
-        const fileName = resume.resume_url.split('/').pop();
+        const { resumeId } = req.params;
+        
+        const { data: resume, error: fetchError } = await supabase
+            .from('resume_versions')
+            .select('*, students!inner(auth_user_id)')
+            .eq('id', resumeId)
+            .eq('students.auth_user_id', req.user.id)
+            .single();
+        
+        if (fetchError || !resume) {
+            return res.status(404).json({ error: 'Resume not found' });
+        }
+        
+        const urlParts = resume.resume_url.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        
         await supabaseAdmin.storage.from('resumes').remove([fileName]);
+        
         await supabase.from('resume_versions').delete().eq('id', resumeId);
         
         if (resume.is_active) {
-            const { data: latestResume } = await supabase.from('resume_versions').select('id').eq('student_id', resume.student_id).order('uploaded_at', { ascending: false }).limit(1);
-            if (latestResume?.length) await supabase.from('resume_versions').update({ is_active: true }).eq('id', latestResume[0].id);
+            const { data: latestResume } = await supabase
+                .from('resume_versions')
+                .select('id')
+                .eq('student_id', resume.student_id)
+                .order('uploaded_at', { ascending: false })
+                .limit(1);
+            
+            if (latestResume && latestResume.length > 0) {
+                await supabase
+                    .from('resume_versions')
+                    .update({ is_active: true })
+                    .eq('id', latestResume[0].id);
+            }
         }
+        
         res.json({ success: true, message: 'Resume deleted successfully' });
+        
     } catch (error) {
+        console.error('Delete error:', error);
         res.status(500).json({ error: 'Failed to delete resume' });
     }
 });
 
-// ========== STUDENT INBOX ==========
+// ========== STUDENT INBOX ROUTES ==========
+
 app.get('/api/student/messages', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'student') return res.status(403).json({ error: 'Access denied' });
-        const { data: student } = await supabase.from('students').select('id').eq('auth_user_id', req.user.id).single();
-        if (!student) return res.status(404).json({ error: 'Student not found' });
-        const { data: messages } = await supabase.from('contact_logs').select('id,message,subject,contacted_at,is_read,recruiter_id,recruiters(id,company_name)').eq('student_id', student.id).order('contacted_at', { ascending: false });
+        if (req.user.role !== 'student') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { data: student } = await supabase
+            .from('students')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (!student) {
+            return res.status(404).json({ error: 'Student profile not found' });
+        }
+        
+        const { data: messages, error } = await supabase
+            .from('contact_logs')
+            .select(`
+                id,
+                message,
+                subject,
+                contacted_at,
+                is_read,
+                recruiter_id,
+                recruiters (id, company_name)
+            `)
+            .eq('student_id', student.id)
+            .order('contacted_at', { ascending: false });
+        
+        if (error) throw error;
+        
         res.json({ success: true, messages: messages || [] });
+        
     } catch (error) {
         res.status(500).json({ error: 'Failed to get messages' });
     }
@@ -259,11 +611,30 @@ app.get('/api/student/messages', authenticateToken, async (req, res) => {
 
 app.post('/api/student/mark-read', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'student') return res.status(403).json({ error: 'Access denied' });
+        if (req.user.role !== 'student') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
         const { message_id } = req.body;
-        const { data: student } = await supabase.from('students').select('id').eq('auth_user_id', req.user.id).single();
-        await supabase.from('contact_logs').update({ is_read: true }).eq('id', message_id).eq('student_id', student.id);
+        
+        const { data: student } = await supabase
+            .from('students')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (!student) {
+            return res.status(404).json({ error: 'Student profile not found' });
+        }
+        
+        await supabase
+            .from('contact_logs')
+            .update({ is_read: true })
+            .eq('id', message_id)
+            .eq('student_id', student.id);
+        
         res.json({ success: true });
+        
     } catch (error) {
         res.status(500).json({ error: 'Failed to mark as read' });
     }
@@ -271,32 +642,106 @@ app.post('/api/student/mark-read', authenticateToken, async (req, res) => {
 
 app.post('/api/student/reply', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'student') return res.status(403).json({ error: 'Access denied' });
-        const { original_message_id, message, subject } = req.body;
-        const { data: originalMessage } = await supabase.from('contact_logs').select('recruiter_id, subject').eq('id', original_message_id).single();
-        if (!originalMessage) return res.status(404).json({ error: 'Message not found' });
-        const { data: student } = await supabase.from('students').select('id, full_name, auth_user_id').eq('auth_user_id', req.user.id).single();
-        const { data: reply } = await supabase.from('contact_logs').insert({
-            student_id: student.id, recruiter_id: originalMessage.recruiter_id, message, subject: subject || `RE: ${originalMessage.subject}`,
-            contacted_at: new Date().toISOString(), reply_to_id: original_message_id, is_read: false
-        }).select().single();
+        if (req.user.role !== 'student') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
         
-        const { data: recruiter } = await supabase.from('recruiters').select('auth_user_id').eq('id', originalMessage.recruiter_id).single();
-        if (recruiter) await supabase.from('notifications').insert({ user_id: recruiter.auth_user_id, type: 'reply', title: 'Student Reply: ' + student.full_name, message: message.substring(0, 100), related_id: reply.id, is_read: false });
+        const { original_message_id, message, subject } = req.body;
+        
+        const { data: originalMessage } = await supabase
+            .from('contact_logs')
+            .select('recruiter_id, subject')
+            .eq('id', original_message_id)
+            .single();
+        
+        if (!originalMessage) {
+            return res.status(404).json({ error: 'Original message not found' });
+        }
+        
+        const { data: student } = await supabase
+            .from('students')
+            .select('id, full_name, email')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        const { data: reply } = await supabase
+            .from('contact_logs')
+            .insert({
+                student_id: student.id,
+                recruiter_id: originalMessage.recruiter_id,
+                message: message,
+                subject: subject || `RE: ${originalMessage.subject}`,
+                contacted_at: new Date().toISOString(),
+                reply_to_id: original_message_id,
+                is_read: false
+            })
+            .select()
+            .single();
+        
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('auth_user_id')
+            .eq('id', originalMessage.recruiter_id)
+            .single();
+        
+        if (recruiter) {
+            await supabase
+                .from('notifications')
+                .insert({
+                    user_id: recruiter.auth_user_id,
+                    type: 'reply',
+                    title: 'Student Reply: ' + student.full_name,
+                    message: message.substring(0, 100),
+                    related_id: reply.id,
+                    is_read: false
+                });
+        }
+        
         res.json({ success: true, message: 'Reply sent successfully' });
+        
     } catch (error) {
+        console.error('Reply error:', error);
         res.status(500).json({ error: 'Failed to send reply' });
     }
 });
 
-// ========== RECRUITER INBOX ==========
+// ========== RECRUITER INBOX ROUTES ==========
+
 app.get('/api/recruiter/messages', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'recruiter') return res.status(403).json({ error: 'Access denied' });
-        const { data: recruiter } = await supabase.from('recruiters').select('id, company_name').eq('auth_user_id', req.user.id).single();
-        if (!recruiter) return res.status(404).json({ error: 'Recruiter not found' });
-        const { data: messages } = await supabase.from('contact_logs').select('id,message,subject,contacted_at,is_read,student_id,reply_to_id,students(id,full_name,email,university_name,current_city,current_state)').eq('recruiter_id', recruiter.id).order('contacted_at', { ascending: false });
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('id, company_name')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (!recruiter) {
+            return res.status(404).json({ error: 'Recruiter profile not found' });
+        }
+        
+        const { data: messages, error } = await supabase
+            .from('contact_logs')
+            .select(`
+                id,
+                message,
+                subject,
+                contacted_at,
+                is_read,
+                student_id,
+                reply_to_id,
+                students (id, full_name, email, university_name, current_city, current_state)
+            `)
+            .eq('recruiter_id', recruiter.id)
+            .order('contacted_at', { ascending: false });
+        
+        if (error) throw error;
+        
         res.json({ success: true, messages: messages || [], company_name: recruiter.company_name });
+        
     } catch (error) {
         res.status(500).json({ error: 'Failed to get messages' });
     }
@@ -304,11 +749,26 @@ app.get('/api/recruiter/messages', authenticateToken, async (req, res) => {
 
 app.post('/api/recruiter/mark-read', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'recruiter') return res.status(403).json({ error: 'Access denied' });
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
         const { message_id } = req.body;
-        const { data: recruiter } = await supabase.from('recruiters').select('id').eq('auth_user_id', req.user.id).single();
-        await supabase.from('contact_logs').update({ is_read: true }).eq('id', message_id).eq('recruiter_id', recruiter.id);
+        
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        await supabase
+            .from('contact_logs')
+            .update({ is_read: true })
+            .eq('id', message_id)
+            .eq('recruiter_id', recruiter.id);
+        
         res.json({ success: true });
+        
     } catch (error) {
         res.status(500).json({ error: 'Failed to mark as read' });
     }
@@ -316,20 +776,42 @@ app.post('/api/recruiter/mark-read', authenticateToken, async (req, res) => {
 
 app.get('/api/recruiter/unread-count', authenticateToken, async (req, res) => {
     try {
-        const { data: recruiter } = await supabase.from('recruiters').select('id').eq('auth_user_id', req.user.id).single();
-        if (!recruiter) return res.json({ success: true, count: 0 });
-        const { count } = await supabase.from('contact_logs').select('*', { count: 'exact', head: true }).eq('recruiter_id', recruiter.id).eq('is_read', false);
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (!recruiter) {
+            return res.json({ success: true, count: 0 });
+        }
+        
+        const { count } = await supabase
+            .from('contact_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('recruiter_id', recruiter.id)
+            .eq('is_read', false);
+        
         res.json({ success: true, count: count || 0 });
+        
     } catch (error) {
         res.json({ success: true, count: 0 });
     }
 });
 
-// ========== NOTIFICATIONS ==========
+// ========== NOTIFICATION ROUTES ==========
+
 app.get('/api/notifications', authenticateToken, async (req, res) => {
     try {
-        const { data: notifications } = await supabase.from('notifications').select('*').eq('user_id', req.user.id).order('created_at', { ascending: false }).limit(50);
+        const { data: notifications } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        
         res.json({ success: true, notifications: notifications || [] });
+        
     } catch (error) {
         res.json({ success: true, notifications: [] });
     }
@@ -338,37 +820,69 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
 app.post('/api/notifications/mark-read', authenticateToken, async (req, res) => {
     try {
         const { notification_id } = req.body;
-        await supabase.from('notifications').update({ is_read: true }).eq('id', notification_id).eq('user_id', req.user.id);
+        
+        await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .eq('id', notification_id)
+            .eq('user_id', req.user.id);
+        
         res.json({ success: true });
+        
     } catch (error) {
         res.status(500).json({ error: 'Failed to mark notification' });
     }
 });
 
-// ========== RECRUITER SEARCH ==========
+// ========== RECRUITER ROUTES ==========
+
 app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'recruiter') return res.status(403).json({ error: 'Access denied' });
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
         const { state, visa } = req.body;
-        let query = supabase.from('students').select('*').eq('profile_status', 'active').eq('is_actively_looking', true);
+        
+        let query = supabase
+            .from('students')
+            .select('*')
+            .eq('profile_status', 'active')
+            .eq('is_actively_looking', true);
+        
         if (state && state !== '') query = query.eq('current_state', state);
         if (visa && visa !== '') query = query.eq('visa_type', visa);
-        const { data: students } = await query;
-        const hiddenStudents = students?.map(s => ({ id: s.id, full_name: s.full_name, current_city: s.current_city, current_state: s.current_state, university_name: s.university_name, visa_type: s.visa_type, graduation_date: s.graduation_date, profile_view_count: s.profile_view_count })) || [];
+        
+        const { data: students, error } = await query;
+        if (error) throw error;
+        
+        const hiddenStudents = students?.map(s => ({
+            id: s.id,
+            full_name: s.full_name,
+            current_city: s.current_city,
+            current_state: s.current_state,
+            university_name: s.university_name,
+            visa_type: s.visa_type,
+            graduation_date: s.graduation_date,
+            profile_view_count: s.profile_view_count
+        })) || [];
+        
         res.json({ success: true, count: hiddenStudents.length, students: hiddenStudents });
+        
     } catch (error) {
+        console.error('Search error:', error);
         res.status(500).json({ error: 'Search failed' });
     }
 });
 
-// ========== FIXED RECRUITER STATS ROUTE ==========
+// ========== FIXED RECRUITER STATS ROUTE (Returns actual database credits) ==========
 app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        // Get recruiter directly from database
+        // Get ACTUAL credits from database - no default value
         const { data: recruiter, error: recruiterError } = await supabase
             .from('recruiters')
             .select('credits_remaining, total_hires, total_contacts')
@@ -376,8 +890,14 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
             .single();
         
         if (recruiterError) {
-            console.error('Recruiter fetch error:', recruiterError);
-            return res.status(500).json({ error: 'Failed to fetch recruiter data' });
+            console.error('Recruiter stats error:', recruiterError);
+            // If no recruiter found, return zeros
+            return res.json({
+                success: true,
+                totalStudents: 0,
+                optStudents: 0,
+                recruiter: { credits: 0, total_hires: 0, total_contacts: 0 }
+            });
         }
         
         const { count: totalStudents } = await supabase
@@ -391,10 +911,10 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
             .in('visa_type', ['OPT_1st_year', 'OPT_2nd_year', 'STEM_OPT'])
             .eq('profile_status', 'active');
         
-        // Get the ACTUAL credits from database - NOT default value
+        // Use the actual credits from database
         const actualCredits = recruiter?.credits_remaining !== undefined ? recruiter.credits_remaining : 0;
         
-        console.log(`📊 Stats for user ${req.user.email}: credits = ${actualCredits}`);
+        console.log(`📊 Stats: User ${req.user.email} has ${actualCredits} credits`);
         
         res.json({
             success: true,
@@ -416,138 +936,420 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
 // ========== VIEW STUDENT PROFILE ==========
 app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'recruiter') return res.status(403).json({ error: 'Access denied' });
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
         const { studentId } = req.params;
-        const { data: student } = await supabase.from('students').select('*').eq('id', studentId).eq('profile_status', 'active').single();
-        if (!student) return res.status(404).json({ error: 'Student not found' });
-        const { data: skills } = await supabase.from('student_skills').select('skills(*)').eq('student_id', student.id);
-        const { data: resumes } = await supabase.from('resume_versions').select('*').eq('student_id', student.id).order('uploaded_at', { ascending: false });
-        await supabase.from('students').update({ profile_view_count: (student.profile_view_count || 0) + 1 }).eq('id', student.id);
-        const { data: recruiter } = await supabase.from('recruiters').select('id').eq('auth_user_id', req.user.id).single();
-        if (recruiter) await supabase.from('view_logs').insert({ recruiter_id: recruiter.id, student_id: student.id });
-        res.json({ success: true, student: { ...student, skills: skills?.map(s => s.skills?.skill_name) || [], resumes: resumes || [] } });
+        
+        const { data: student, error } = await supabase
+            .from('students')
+            .select('*')
+            .eq('id', studentId)
+            .eq('profile_status', 'active')
+            .single();
+        
+        if (error || !student) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+        
+        const { data: skills } = await supabase
+            .from('student_skills')
+            .select('skills(*)')
+            .eq('student_id', student.id);
+        
+        const { data: resumes } = await supabase
+            .from('resume_versions')
+            .select('*')
+            .eq('student_id', student.id)
+            .order('uploaded_at', { ascending: false });
+        
+        await supabase
+            .from('students')
+            .update({ profile_view_count: (student.profile_view_count || 0) + 1 })
+            .eq('id', student.id);
+        
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        if (recruiter) {
+            await supabase.from('view_logs').insert({ recruiter_id: recruiter.id, student_id: student.id });
+        }
+        
+        res.json({
+            success: true,
+            student: {
+                ...student,
+                skills: skills?.map(s => s.skills?.skill_name) || [],
+                resumes: resumes || []
+            }
+        });
+        
     } catch (error) {
+        console.error('View profile error:', error);
         res.status(500).json({ error: 'Failed to load student' });
     }
 });
 
-// ========== CONTACT ROUTE ==========
+// ========== CONTACT ROUTE (Preserved from your working code) ==========
 app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
     try {
-        console.log('📞 Contact request received');
-        if (req.user.role !== 'recruiter') return res.status(403).json({ error: 'Access denied' });
+        console.log('========== CONTACT API CALLED ==========');
+        console.log('User:', req.user.email);
+        console.log('User role:', req.user.role);
+        console.log('Request body:', req.body);
+        
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied - Not a recruiter' });
+        }
         
         const { student_id, message } = req.body;
-        if (!student_id) return res.status(400).json({ error: 'Student ID required' });
         
-        const { data: recruiter, error: recruiterError } = await supabase.from('recruiters').select('id, credits_remaining, company_name, total_contacts').eq('auth_user_id', req.user.id).single();
-        if (recruiterError || !recruiter) return res.status(404).json({ error: 'Recruiter not found' });
+        if (!student_id) {
+            return res.status(400).json({ error: 'Student ID is required' });
+        }
         
-        console.log('Current credits:', recruiter.credits_remaining);
-        if (recruiter.credits_remaining <= 0) return res.status(402).json({ error: 'No credits remaining' });
+        // Get recruiter details
+        const { data: recruiter, error: recruiterError } = await supabase
+            .from('recruiters')
+            .select('id, credits_remaining, company_name, total_contacts')
+            .eq('auth_user_id', req.user.id)
+            .single();
         
-        const { data: student } = await supabase.from('students').select('id, auth_user_id').eq('id', student_id).single();
-        if (!student) return res.status(404).json({ error: 'Student not found' });
+        if (recruiterError) {
+            console.error('Recruiter fetch error:', recruiterError);
+            return res.status(404).json({ error: 'Recruiter profile not found' });
+        }
         
+        console.log('Recruiter found - ID:', recruiter.id, 'Credits:', recruiter.credits_remaining);
+        
+        // Check credits
+        if (recruiter.credits_remaining <= 0) {
+            return res.status(402).json({ error: 'No credits remaining. Please purchase more credits.' });
+        }
+        
+        // Get student details
+        const { data: student, error: studentError } = await supabase
+            .from('students')
+            .select('id, auth_user_id, email, full_name')
+            .eq('id', student_id)
+            .single();
+        
+        if (studentError || !student) {
+            console.error('Student fetch error:', studentError);
+            return res.status(404).json({ error: 'Student not found' });
+        }
+        
+        console.log('Student found - ID:', student.id, 'Email:', student.email);
+        
+        // Calculate new values
         const newCredits = recruiter.credits_remaining - 1;
         const newTotalContacts = (recruiter.total_contacts || 0) + 1;
         
-        const { error: updateError } = await supabase.from('recruiters').update({ credits_remaining: newCredits, total_contacts: newTotalContacts }).eq('id', recruiter.id);
-        if (updateError) return res.status(500).json({ error: 'Failed to update credits' });
+        console.log('Updating credits:', recruiter.credits_remaining, '->', newCredits);
         
-        await supabase.from('contact_logs').insert({ recruiter_id: recruiter.id, student_id: student_id, message: message, contacted_at: new Date().toISOString(), is_read: false });
+        // Update recruiter credits
+        const { error: updateError } = await supabase
+            .from('recruiters')
+            .update({ 
+                credits_remaining: newCredits,
+                total_contacts: newTotalContacts
+            })
+            .eq('id', recruiter.id);
         
-        if (student.auth_user_id) {
-            await supabase.from('notifications').insert({ user_id: student.auth_user_id, type: 'contact', title: `Message from ${recruiter.company_name}`, message: message.substring(0, 100), is_read: false });
+        if (updateError) {
+            console.error('Credit update error:', updateError);
+            return res.status(500).json({ error: 'Failed to update credits: ' + updateError.message });
         }
         
-        console.log('Contact successful. New credits:', newCredits);
-        res.json({ success: true, message: 'Student contacted successfully', credits_remaining: newCredits });
+        console.log('Credits updated successfully');
+        
+        // Save contact log
+        const { error: contactError } = await supabase
+            .from('contact_logs')
+            .insert({
+                recruiter_id: recruiter.id,
+                student_id: student_id,
+                message: message || 'No message provided',
+                contacted_at: new Date().toISOString(),
+                is_read: false
+            });
+        
+        if (contactError) {
+            console.error('Contact log error:', contactError);
+            // Don't return error, just log it
+        } else {
+            console.log('Contact log saved');
+        }
+        
+        // Send notification to student
+        if (student.auth_user_id) {
+            const { error: notifyError } = await supabase
+                .from('notifications')
+                .insert({
+                    user_id: student.auth_user_id,
+                    type: 'contact',
+                    title: `New Message from ${recruiter.company_name}`,
+                    message: message ? message.substring(0, 100) : 'A recruiter is interested in your profile',
+                    is_read: false
+                });
+            
+            if (notifyError) {
+                console.error('Notification error:', notifyError);
+            } else {
+                console.log('Notification sent to student');
+            }
+        }
+        
+        console.log('========== CONTACT SUCCESSFUL ==========');
+        console.log('New credits remaining:', newCredits);
+        
+        res.json({ 
+            success: true, 
+            message: 'Student contacted successfully!',
+            credits_remaining: newCredits
+        });
+        
     } catch (error) {
-        console.error('Contact error:', error);
-        res.status(500).json({ error: 'Failed to contact student' });
+        console.error('========== CONTACT ERROR ==========');
+        console.error(error);
+        res.status(500).json({ error: 'Failed to contact student: ' + error.message });
     }
 });
 
-// ========== MARK AS HIRED ==========
 app.post('/api/recruiter/mark-hired', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'recruiter') return res.status(403).json({ error: 'Access denied' });
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
         const { student_id } = req.body;
-        const { data: recruiter } = await supabase.from('recruiters').select('id, total_hires').eq('auth_user_id', req.user.id).single();
-        await supabase.from('students').update({ profile_status: 'hired', hired_by_recruiter_id: recruiter?.id, hired_at: new Date().toISOString(), is_actively_looking: false }).eq('id', student_id);
-        if (recruiter) await supabase.from('recruiters').update({ total_hires: (recruiter.total_hires || 0) + 1 }).eq('id', recruiter.id);
+        
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('id, total_hires')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        await supabase
+            .from('students')
+            .update({
+                profile_status: 'hired',
+                hired_by_recruiter_id: recruiter?.id,
+                hired_at: new Date().toISOString(),
+                is_actively_looking: false
+            })
+            .eq('id', student_id);
+        
+        if (recruiter) {
+            await supabase
+                .from('recruiters')
+                .update({ total_hires: (recruiter.total_hires || 0) + 1 })
+                .eq('id', recruiter.id);
+        }
+        
         res.json({ success: true, message: 'Student marked as hired' });
+        
     } catch (error) {
+        console.error('Mark hired error:', error);
         res.status(500).json({ error: 'Failed to mark as hired' });
     }
 });
 
-// ========== SCHEDULE INTERVIEW ==========
 app.post('/api/recruiter/schedule-interview', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'recruiter') return res.status(403).json({ error: 'Access denied' });
+        if (req.user.role !== 'recruiter') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
         const { student_id, scheduled_at, duration_minutes, interview_type, meeting_link } = req.body;
-        const { data: recruiter } = await supabase.from('recruiters').select('id').eq('auth_user_id', req.user.id).single();
-        const { data: student } = await supabase.from('students').select('auth_user_id').eq('id', student_id).single();
-        const { data: interview } = await supabase.from('interviews').insert({ recruiter_id: recruiter.id, student_id, scheduled_at, duration_minutes: duration_minutes || 60, interview_type: interview_type || 'video', meeting_link, status: 'scheduled' }).select().single();
-        await supabase.from('notifications').insert({ user_id: student.auth_user_id, type: 'interview', title: 'Interview Scheduled', message: `Interview scheduled for ${new Date(scheduled_at).toLocaleString()}` });
+        
+        const { data: recruiter } = await supabase
+            .from('recruiters')
+            .select('id')
+            .eq('auth_user_id', req.user.id)
+            .single();
+        
+        const { data: student } = await supabase
+            .from('students')
+            .select('auth_user_id')
+            .eq('id', student_id)
+            .single();
+        
+        const { data: interview, error } = await supabase
+            .from('interviews')
+            .insert({
+                recruiter_id: recruiter.id,
+                student_id: student_id,
+                scheduled_at: scheduled_at,
+                duration_minutes: duration_minutes || 60,
+                interview_type: interview_type || 'video',
+                meeting_link: meeting_link,
+                status: 'scheduled'
+            })
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        await supabase.from('notifications').insert({
+            user_id: student.auth_user_id,
+            type: 'interview',
+            title: 'Interview Scheduled',
+            message: `Interview scheduled for ${new Date(scheduled_at).toLocaleString()}`
+        });
+        
         res.json({ success: true, interview });
+        
     } catch (error) {
+        console.error('Schedule interview error:', error);
         res.status(500).json({ error: 'Failed to schedule interview' });
     }
 });
 
 // ========== ADMIN ROUTES ==========
+
 app.get('/api/admin/stats', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
-        const { count: totalStudents } = await supabase.from('students').select('*', { count: 'exact', head: true });
-        const { count: activeStudents } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('profile_status', 'active');
-        const { count: totalRecruiters } = await supabase.from('recruiters').select('*', { count: 'exact', head: true });
-        const { count: totalHires } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('profile_status', 'hired');
-        res.json({ success: true, stats: { totalStudents: totalStudents || 0, activeStudents: activeStudents || 0, totalRecruiters: totalRecruiters || 0, totalHires: totalHires || 0 } });
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { count: totalStudents } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true });
+        
+        const { count: activeStudents } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('profile_status', 'active');
+        
+        const { count: totalRecruiters } = await supabase
+            .from('recruiters')
+            .select('*', { count: 'exact', head: true });
+        
+        const { count: totalHires } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('profile_status', 'hired');
+        
+        res.json({
+            success: true,
+            stats: {
+                totalStudents: totalStudents || 0,
+                activeStudents: activeStudents || 0,
+                totalRecruiters: totalRecruiters || 0,
+                totalHires: totalHires || 0
+            }
+        });
+        
     } catch (error) {
+        console.error('Admin stats error:', error);
         res.status(500).json({ error: 'Failed to get stats' });
     }
 });
 
 app.get('/api/admin/students', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
-        const { data: students } = await supabase.from('students').select('*').order('created_at', { ascending: false });
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const { data: students, error } = await supabase
+            .from('students')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
         res.json({ success: true, students: students || [] });
+        
     } catch (error) {
+        console.error('Admin students error:', error);
         res.status(500).json({ error: 'Failed to get students' });
     }
 });
 
 app.post('/api/admin/bulk-upload', authenticateToken, upload.single('csv'), async (req, res) => {
     try {
-        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
-        if (!req.file) return res.status(400).json({ error: 'CSV file required' });
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'CSV file required' });
+        }
         
         const csv = require('csv-parser');
         const results = [];
-        let added = 0, duplicates = 0;
+        let added = 0;
+        let duplicates = 0;
+        
         const tempFilePath = path.join(__dirname, 'uploads', Date.now() + '.csv');
         fs.writeFileSync(tempFilePath, req.file.buffer);
         
-        fs.createReadStream(tempFilePath).pipe(csv()).on('data', (data) => results.push(data)).on('end', async () => {
-            for (const row of results) {
-                const { data: existing } = await supabase.from('auth_users').select('id').eq('email', row.email).single();
-                if (existing) { duplicates++; continue; }
-                const tempPassword = Math.random().toString(36).slice(-8);
-                const hashedPassword = await bcrypt.hash(tempPassword, 10);
-                const { data: authUser } = await supabase.from('auth_users').insert({ email: row.email, password_hash: hashedPassword, full_name: row.full_name, role: 'student', is_verified: true }).select().single();
-                if (!authUser) continue;
-                await supabase.from('students').insert({ auth_user_id: authUser.id, full_name: row.full_name, email: row.email, current_city: row.city, current_state: row.state, university_name: row.university, graduation_date: row.graduation_date, visa_type: row.visa_type, profile_status: 'active', is_actively_looking: true, source: 'csv_upload', profile_complete: true, profile_view_count: 0 });
-                added++;
-            }
-            fs.unlinkSync(tempFilePath);
-            res.json({ success: true, total: results.length, added, duplicates });
-        });
+        fs.createReadStream(tempFilePath)
+            .pipe(csv())
+            .on('data', (data) => results.push(data))
+            .on('end', async () => {
+                for (const row of results) {
+                    const { data: existing } = await supabase
+                        .from('auth_users')
+                        .select('id')
+                        .eq('email', row.email)
+                        .single();
+                    
+                    if (existing) {
+                        duplicates++;
+                        continue;
+                    }
+                    
+                    const tempPassword = Math.random().toString(36).slice(-8);
+                    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+                    
+                    const { data: authUser } = await supabase
+                        .from('auth_users')
+                        .insert({
+                            email: row.email,
+                            password_hash: hashedPassword,
+                            full_name: row.full_name,
+                            role: 'student',
+                            is_verified: true
+                        })
+                        .select()
+                        .single();
+                    
+                    if (!authUser) continue;
+                    
+                    await supabase.from('students').insert({
+                        auth_user_id: authUser.id,
+                        full_name: row.full_name,
+                        email: row.email,
+                        current_city: row.city,
+                        current_state: row.state,
+                        university_name: row.university,
+                        graduation_date: row.graduation_date,
+                        visa_type: row.visa_type,
+                        profile_status: 'active',
+                        is_actively_looking: true,
+                        source: 'csv_upload',
+                        profile_complete: true,
+                        profile_view_count: 0
+                    });
+                    
+                    added++;
+                }
+                
+                fs.unlinkSync(tempFilePath);
+                
+                res.json({ success: true, total: results.length, added, duplicates });
+            });
+        
     } catch (error) {
+        console.error('Bulk upload error:', error);
         res.status(500).json({ error: 'Bulk upload failed' });
     }
 });
@@ -556,17 +1358,48 @@ app.post('/api/admin/bulk-upload', authenticateToken, upload.single('csv'), asyn
 app.get('/api/download-resume/:resumeId', authenticateToken, async (req, res) => {
     try {
         const { resumeId } = req.params;
-        const { data: resume } = await supabase.from('resume_versions').select('*').eq('id', resumeId).single();
-        if (!resume) return res.status(404).json({ error: 'Resume not found' });
+        
+        console.log('📄 Download request for resume:', resumeId);
+        
+        const { data: resume, error: resumeError } = await supabase
+            .from('resume_versions')
+            .select('*')
+            .eq('id', resumeId)
+            .single();
+        
+        if (resumeError || !resume) {
+            console.error('Resume not found:', resumeError);
+            return res.status(404).json({ error: 'Resume not found' });
+        }
         
         if (req.user.role === 'recruiter') {
-            const { data: recruiter } = await supabase.from('recruiters').select('id').eq('auth_user_id', req.user.id).single();
-            const { data: contact } = await supabase.from('contact_logs').select('id').eq('recruiter_id', recruiter.id).eq('student_id', resume.student_id).limit(1);
-            if (!contact || contact.length === 0) return res.status(403).json({ error: 'You must contact the student first' });
+            const { data: recruiter, error: recruiterError } = await supabase
+                .from('recruiters')
+                .select('id')
+                .eq('auth_user_id', req.user.id)
+                .single();
+            
+            if (recruiterError || !recruiter) {
+                return res.status(403).json({ error: 'Recruiter profile not found' });
+            }
+            
+            const { data: contact } = await supabase
+                .from('contact_logs')
+                .select('id')
+                .eq('recruiter_id', recruiter.id)
+                .eq('student_id', resume.student_id)
+                .limit(1);
+            
+            if (!contact || contact.length === 0) {
+                return res.status(403).json({ error: 'You must contact the student first to download resume' });
+            }
         }
+        
         res.json({ success: true, download_url: resume.resume_url });
+        
     } catch (error) {
-        res.status(500).json({ error: 'Failed to get resume' });
+        console.error('Download error:', error);
+        res.status(500).json({ error: 'Failed to get resume: ' + error.message });
     }
 });
 
@@ -578,5 +1411,5 @@ app.get('/api/health', (req, res) => {
 // ========== START SERVER ==========
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`✅ All features working`);
+    console.log(`✅ All features: ENABLED`);
 });
