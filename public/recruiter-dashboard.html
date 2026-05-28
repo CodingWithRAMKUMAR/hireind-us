@@ -63,6 +63,17 @@
         .spinner { width: 40px; height: 40px; border: 3px solid rgba(102, 126, 234, 0.2); border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 768px) { .container { padding: 1rem; } .students-grid { grid-template-columns: 1fr; } .nav-links { justify-content: center; } }
+        
+        /* Credit warning style */
+        .credits-badge.low-credits {
+            background: #f56565;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -71,7 +82,7 @@
         <div class="nav-links">
             <a href="recruiter-dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
             <a href="recruiter-inbox.html" class="nav-link"><i class="fas fa-envelope"></i> Inbox <span id="inboxBadge" class="badge" style="display: none;">0</span></a>
-            <div class="credits-badge"><i class="fas fa-coins"></i> <span id="creditsRemaining">-</span> Credits</div>
+            <div class="credits-badge" id="creditsBadge"><i class="fas fa-coins"></i> <span id="creditsRemaining">-</span> Credits</div>
             <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
     </nav>
@@ -91,6 +102,7 @@
                 <select id="visaFilter"><option value="">All Visas</option><option value="OPT_1st_year">OPT (1st Year)</option><option value="OPT_2nd_year">OPT (2nd Year)</option><option value="STEM_OPT">STEM OPT</option><option value="H1B">H1B</option></select>
             </div>
             <button class="search-btn" onclick="searchCandidates()"><i class="fas fa-search"></i> Search Candidates</button>
+            <button class="search-btn" onclick="refreshCredits()" style="background: #48bb78; margin-left: 10px;"><i class="fas fa-sync-alt"></i> Refresh Credits</button>
         </div>
 
         <div id="results" class="students-grid"><div class="loading"><div class="spinner"></div><p>Loading candidates...</p></div></div>
@@ -100,7 +112,7 @@
     <div id="contactModal" class="modal">
         <div class="modal-content">
             <div class="modal-header"><h3>Contact Candidate</h3><button class="modal-close" onclick="closeContactModal()">&times;</button></div>
-            <p>This will cost <strong>1 credit</strong>. Your remaining credits: <span id="modalCredits">-</span></p>
+            <p>This will cost <strong>1 credit</strong>. Your remaining credits: <strong id="modalCredits">-</strong></p>
             <input type="text" id="contactSubject" placeholder="Subject (Optional)" style="width:100%; padding:0.75rem; background:#0A0F1E; border:1px solid #667eea; border-radius:0.5rem; color:white; margin-bottom:1rem;">
             <textarea id="contactMessage" rows="4" placeholder="Write your message to the candidate..."></textarea>
             <button class="search-btn" style="width:100%;" onclick="sendContact()">Send Message (1 Credit)</button>
@@ -119,6 +131,7 @@
         const API_URL = '';
         let selectedStudentId = null;
         let recruiterData = null;
+        let refreshInterval = null;
 
         function getToken() { return localStorage.getItem('token'); }
         function checkAuth() { if (!getToken()) { window.location.href = '/login.html'; return false; } return true; }
@@ -139,6 +152,12 @@
             } catch(e) { console.error('Unread count error:', e); }
         }
 
+        // Manual refresh button
+        async function refreshCredits() {
+            await loadStats();
+            alert('Credits refreshed: ' + document.getElementById('creditsRemaining').innerText);
+        }
+
         // FIXED: Force fresh data from server every time
         async function loadStats() {
             try {
@@ -151,16 +170,25 @@
                     const credits = result.recruiter?.credits || 0;
                     console.log('💰 Credits from server:', credits);
                     
+                    // Update all credit displays
                     document.getElementById('totalCandidates').innerText = result.totalStudents || 0;
                     document.getElementById('optCandidates').innerText = result.optStudents || 0;
                     document.getElementById('creditsRemaining').innerText = credits;
                     document.getElementById('myCredits').innerText = credits;
                     document.getElementById('myHires').innerText = result.recruiter?.total_hires || 0;
                     
-                    // Also update modal if it's open
+                    // Update modal if open
                     const modalCreditsSpan = document.getElementById('modalCredits');
                     if (modalCreditsSpan) {
                         modalCreditsSpan.innerText = credits;
+                    }
+                    
+                    // Change badge color if low credits
+                    const creditsBadge = document.getElementById('creditsBadge');
+                    if (credits <= 2 && credits > 0) {
+                        creditsBadge.classList.add('low-credits');
+                    } else {
+                        creditsBadge.classList.remove('low-credits');
                     }
                     
                     if (recruiterData) recruiterData.credits = credits;
@@ -176,8 +204,11 @@
                             btn.disabled = false;
                         }
                     });
+                    
+                    return credits;
                 }
             } catch(e) { console.error('Stats error:', e); }
+            return 0;
         }
 
         async function searchCandidates() {
@@ -190,17 +221,21 @@
                     body: JSON.stringify({ state: document.getElementById('stateFilter').value, visa: document.getElementById('visaFilter').value })
                 });
                 const result = await response.json();
-                if (result.success && result.students) { displayStudents(result.students); }
-                else { resultsDiv.innerHTML = '<p style="text-align:center; padding:2rem;">No candidates found</p>'; }
-                await loadStats();
+                if (result.success && result.students) { 
+                    // Get fresh credits before displaying
+                    const currentCredits = await loadStats();
+                    displayStudents(result.students, currentCredits);
+                } else { 
+                    resultsDiv.innerHTML = '<p style="text-align:center; padding:2rem;">No candidates found</p>'; 
+                }
             } catch(e) { resultsDiv.innerHTML = '<p style="text-align:center; padding:2rem; color:#f56565;">Error loading candidates</p>'; }
         }
 
-        function displayStudents(students) {
+        function displayStudents(students, currentCredits) {
             const resultsDiv = document.getElementById('results');
             if (students.length === 0) { resultsDiv.innerHTML = '<p style="text-align:center; padding:2rem;">No candidates found</p>'; return; }
             let html = '';
-            const currentCredits = parseInt(document.getElementById('creditsRemaining').innerText) || 0;
+            const credits = currentCredits !== undefined ? currentCredits : (parseInt(document.getElementById('creditsRemaining').innerText) || 0);
             students.forEach(s => {
                 html += `<div class="student-card">
                     <div class="student-name">${escapeHtml(s.full_name || 'Student')}</div>
@@ -212,7 +247,7 @@
                     </div>
                     <div class="card-actions">
                         <button class="view-btn" onclick="viewFullProfile('${s.id}')"><i class="fas fa-eye"></i> View Profile</button>
-                        <button class="contact-btn" onclick="openContactModal('${s.id}')" ${currentCredits <= 0 ? 'disabled' : ''}><i class="fas fa-envelope"></i> Contact</button>
+                        <button class="contact-btn" onclick="openContactModal('${s.id}')" ${credits <= 0 ? 'disabled' : ''}><i class="fas fa-envelope"></i> Contact</button>
                         <button class="hire-btn" onclick="markAsHired('${s.id}')"><i class="fas fa-check"></i> Hire</button>
                     </div>
                 </div>`;
@@ -266,10 +301,10 @@
             } catch(e) { alert('Network error'); }
         }
 
-        // FIXED: Get real-time credits from display
-        function openContactModal(studentId) {
-            const creditsSpan = document.getElementById('creditsRemaining');
-            const credits = parseInt(creditsSpan.innerText) || 0;
+        // FIXED: Get real-time credits from server when opening modal
+        async function openContactModal(studentId) {
+            // Force refresh credits before opening modal
+            const credits = await loadStats();
             
             console.log('Opening modal with credits:', credits);
             
@@ -310,15 +345,24 @@
                     const newCredits = result.credits_remaining;
                     console.log('New credits from API:', newCredits);
                     
-                    // Update display immediately
+                    // Update all displays immediately
                     document.getElementById('creditsRemaining').innerText = newCredits;
                     document.getElementById('myCredits').innerText = newCredits;
+                    document.getElementById('modalCredits').innerText = newCredits;
                     if (recruiterData) recruiterData.credits = newCredits;
+                    
+                    // Update badge color
+                    const creditsBadge = document.getElementById('creditsBadge');
+                    if (newCredits <= 2 && newCredits > 0) {
+                        creditsBadge.classList.add('low-credits');
+                    } else {
+                        creditsBadge.classList.remove('low-credits');
+                    }
                     
                     alert('✅ ' + result.message);
                     closeContactModal();
                     
-                    // Force refresh
+                    // Refresh everything
                     await loadStats();
                     await searchCandidates();
                 } else {
@@ -348,10 +392,30 @@
         }
 
         function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
-        function logout() { localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.href = '/login.html'; }
+        function logout() { 
+            if (refreshInterval) clearInterval(refreshInterval);
+            localStorage.removeItem('token'); 
+            localStorage.removeItem('user'); 
+            window.location.href = '/login.html'; 
+        }
 
-        if (checkAuth()) { loadStats(); searchCandidates(); loadUnreadCount(); }
-        setInterval(() => { if (checkAuth()) { loadUnreadCount(); loadStats(); } }, 30000);
+        // Initialize
+        if (checkAuth()) { 
+            loadStats(); 
+            searchCandidates(); 
+            loadUnreadCount();
+            // Refresh credits every 10 seconds
+            refreshInterval = setInterval(() => {
+                if (checkAuth()) {
+                    loadStats();
+                }
+            }, 10000);
+        }
+        
+        // Cleanup interval on page unload
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) clearInterval(refreshInterval);
+        });
     </script>
 </body>
 </html>
