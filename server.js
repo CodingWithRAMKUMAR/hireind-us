@@ -293,6 +293,7 @@ app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
     }
 });
 
+// ========== UPDATED STUDENT UPDATE ROUTE (New Fields Added) ==========
 app.post('/api/student/update', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
         if (req.user.role !== 'student') {
@@ -371,6 +372,8 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
         }
         
         const updateData = {};
+        
+        // Existing fields
         if (req.body.full_name && req.body.full_name !== '') updateData.full_name = req.body.full_name;
         if (req.body.phone !== undefined) updateData.phone = req.body.phone;
         if (req.body.current_city !== undefined) updateData.current_city = req.body.current_city;
@@ -381,6 +384,15 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
         if (req.body.linkedin_url !== undefined) updateData.linkedin_url = req.body.linkedin_url;
         if (req.body.github_url !== undefined) updateData.github_url = req.body.github_url;
         if (resume_url) updateData.resume_url = resume_url;
+        
+        // NEW FIELDS ADDED (for enhanced search)
+        if (req.body.preferred_job_title !== undefined) updateData.preferred_job_title = req.body.preferred_job_title;
+        if (req.body.current_company !== undefined) updateData.current_company = req.body.current_company;
+        if (req.body.job_search_status !== undefined) updateData.job_search_status = req.body.job_search_status;
+        if (req.body.experience_gap !== undefined) updateData.experience_gap = req.body.experience_gap;
+        if (req.body.graduation_year !== undefined) updateData.graduation_year = req.body.graduation_year;
+        if (req.body.experience_range_min !== undefined) updateData.experience_range_min = req.body.experience_range_min;
+        if (req.body.experience_range_max !== undefined) updateData.experience_range_max = req.body.experience_range_max;
         
         updateData.is_actively_looking = (req.body.is_actively_looking === 'on' || req.body.is_actively_looking === true);
         updateData.profile_complete = true;
@@ -875,30 +887,17 @@ app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
     }
 });
 
-// ========== FIXED RECRUITER STATS ROUTE (Returns actual database credits) ==========
 app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        // Get ACTUAL credits from database - no default value
-        const { data: recruiter, error: recruiterError } = await supabase
+        const { data: recruiter } = await supabase
             .from('recruiters')
-            .select('credits_remaining, total_hires, total_contacts')
+            .select('*')
             .eq('auth_user_id', req.user.id)
             .single();
-        
-        if (recruiterError) {
-            console.error('Recruiter stats error:', recruiterError);
-            // If no recruiter found, return zeros
-            return res.json({
-                success: true,
-                totalStudents: 0,
-                optStudents: 0,
-                recruiter: { credits: 0, total_hires: 0, total_contacts: 0 }
-            });
-        }
         
         const { count: totalStudents } = await supabase
             .from('students')
@@ -911,17 +910,12 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
             .in('visa_type', ['OPT_1st_year', 'OPT_2nd_year', 'STEM_OPT'])
             .eq('profile_status', 'active');
         
-        // Use the actual credits from database
-        const actualCredits = recruiter?.credits_remaining !== undefined ? recruiter.credits_remaining : 0;
-        
-        console.log(`📊 Stats: User ${req.user.email} has ${actualCredits} credits`);
-        
         res.json({
             success: true,
             totalStudents: totalStudents || 0,
             optStudents: optStudents || 0,
             recruiter: {
-                credits: actualCredits,
+                credits: recruiter?.credits_remaining || 10,
                 total_hires: recruiter?.total_hires || 0,
                 total_contacts: recruiter?.total_contacts || 0
             }
@@ -933,7 +927,6 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     }
 });
 
-// ========== VIEW STUDENT PROFILE ==========
 app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
@@ -994,7 +987,7 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
     }
 });
 
-// ========== CONTACT ROUTE (Preserved from your working code) ==========
+// ========== CONTACT ROUTE ==========
 app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
     try {
         console.log('========== CONTACT API CALLED ==========');
@@ -1080,7 +1073,6 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
         
         if (contactError) {
             console.error('Contact log error:', contactError);
-            // Don't return error, just log it
         } else {
             console.log('Contact log saved');
         }
