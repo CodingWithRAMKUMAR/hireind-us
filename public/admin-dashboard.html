@@ -60,9 +60,19 @@
         }
         .upload-area:hover { border-color: #667eea; background: rgba(102, 126, 234, 0.05); }
         .upload-area i { font-size: 2rem; color: #667eea; margin-bottom: 0.5rem; }
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        th { color: #667eea; }
+        .filter-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .filter-group { margin-bottom: 0.5rem; }
+        .filter-group label { display: block; margin-bottom: 0.25rem; font-size: 0.7rem; color: rgba(255,255,255,0.5); }
+        select, input {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #1a1f3a;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 0.5rem;
+            color: white;
+            font-size: 0.9rem;
+        }
+        select option { background-color: #0A0F1E; color: white; }
         .btn {
             background: linear-gradient(135deg, #667eea, #764ba2);
             border: none;
@@ -70,8 +80,12 @@
             border-radius: 0.5rem;
             color: white;
             cursor: pointer;
-            margin-top: 1rem;
+            margin-top: 0.5rem;
         }
+        .btn-secondary { background: #48bb78; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        th { color: #667eea; }
         .loading { text-align: center; padding: 2rem; }
         .spinner {
             width: 40px;
@@ -86,7 +100,7 @@
         .result-box { margin-top: 1rem; padding: 1rem; border-radius: 0.5rem; display: none; }
         .result-box.success { background: rgba(72, 187, 120, 0.2); border: 1px solid #48bb78; color: #48bb78; display: block; }
         .result-box.error { background: rgba(245, 101, 101, 0.2); border: 1px solid #f56565; color: #f56565; display: block; }
-        @media (max-width: 768px) { .container { padding: 1rem; } table { font-size: 0.8rem; } }
+        @media (max-width: 768px) { .container { padding: 1rem; } table { font-size: 0.8rem; } .filter-row { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
@@ -103,6 +117,7 @@
             <div class="stat-card"><div class="stat-number" id="totalHires">-</div><div class="stat-label">Total Hires</div></div>
         </div>
 
+        <!-- CSV Bulk Upload Card -->
         <div class="card">
             <div class="card-title"><i class="fas fa-upload"></i> Bulk Upload Students (CSV)</div>
             <div class="upload-area" onclick="document.getElementById('csvFile').click()">
@@ -115,6 +130,43 @@
             <button class="btn" onclick="downloadTemplate()" style="margin-top:1rem;"><i class="fas fa-download"></i> Download CSV Template</button>
         </div>
 
+        <!-- GitHub Scraper Card -->
+        <div class="card">
+            <div class="card-title"><i class="fab fa-github"></i> GitHub Scraper</div>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label><i class="fas fa-map-marker-alt"></i> Location Filter</label>
+                    <input type="text" id="scrapeLocation" placeholder="e.g., San Francisco, United States">
+                </div>
+                <div class="filter-group">
+                    <label><i class="fas fa-code"></i> Language Filter</label>
+                    <select id="scrapeLanguage">
+                        <option value="">Any Language</option>
+                        <option value="Python">Python</option>
+                        <option value="JavaScript">JavaScript</option>
+                        <option value="Java">Java</option>
+                        <option value="React">React</option>
+                        <option value="AWS">AWS</option>
+                        <option value="TypeScript">TypeScript</option>
+                        <option value="Go">Go</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label><i class="fas fa-search"></i> Custom Query</label>
+                    <input type="text" id="scrapeQuery" placeholder="e.g., 'MS in CS' or 'student'">
+                </div>
+            </div>
+            <button class="btn btn-secondary" onclick="runGitHubScraper()"><i class="fab fa-github"></i> Run GitHub Scraper</button>
+            <div id="scraperResult" class="result-box" style="margin-top:1rem;"></div>
+        </div>
+
+        <!-- Scraping Logs Card -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-history"></i> Scraping Logs</div>
+            <div id="scrapingLogs"><div class="loading"><div class="spinner"></div>Loading logs...</div></div>
+        </div>
+
+        <!-- Recent Students Card -->
         <div class="card">
             <div class="card-title"><i class="fas fa-users"></i> Recent Students</div>
             <div id="studentsList"><div class="loading"><div class="spinner"></div>Loading...</div></div>
@@ -169,7 +221,7 @@
                 return;
             }
             
-            let html = '<tr><thead>\n<th>Name</th>\n<th>Email</th>\n<th>University</th>\n<th>Visa</th>\n<th>Status</th>\n</thead>\n<tbody>';
+            let html = '<table><thead>\n<th>Name</th>\n<th>Email</th>\n<th>University</th>\n<th>Visa</th>\n<th>Status</th>\n<th>Source</th>\n</thead>\n<tbody>';
             students.slice(0, 20).forEach(s => {
                 html += `<tr>
                     <td>${escapeHtml(s.full_name || 'N/A')}</td>
@@ -177,6 +229,7 @@
                     <td>${escapeHtml(s.university_name || 'N/A')}</td>
                     <td>${s.visa_type || 'N/A'}</td>
                     <td>${s.profile_status === 'active' ? '✅ Active' : '🔴 Hired'}</td>
+                    <td>${s.source || 'manual'}</td>
                 </tr>`;
             });
             html += '</tbody></table>';
@@ -239,6 +292,76 @@ Amit Kumar,amit@example.com,Austin,TX,University of Texas,2025-08-20,H1B`;
             URL.revokeObjectURL(url);
         }
 
+        // GitHub Scraper Functions
+        async function runGitHubScraper() {
+            const location = document.getElementById('scrapeLocation').value;
+            const language = document.getElementById('scrapeLanguage').value;
+            const query = document.getElementById('scrapeQuery').value;
+            
+            const resultDiv = document.getElementById('scraperResult');
+            resultDiv.className = 'result-box';
+            resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Scraping GitHub...</div>';
+            resultDiv.style.display = 'block';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/admin/scrape-github`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ location, language, query })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.className = 'result-box success';
+                    resultDiv.innerHTML = `
+                        <i class="fab fa-github"></i> Scraping complete!<br>
+                        Total GitHub users processed: ${result.total}<br>
+                        ✅ New students added: ${result.added}<br>
+                        🔄 Existing students updated: ${result.updated}
+                    `;
+                    loadStats();
+                    loadStudents();
+                    loadScrapingLogs();
+                } else {
+                    resultDiv.className = 'result-box error';
+                    resultDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Error: ${result.error}`;
+                }
+            } catch(e) {
+                resultDiv.className = 'result-box error';
+                resultDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Network error: ${e.message}`;
+            }
+        }
+
+        async function loadScrapingLogs() {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/scraping-logs`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                });
+                const result = await response.json();
+                const container = document.getElementById('scrapingLogs');
+                
+                if (result.success && result.logs && result.logs.length > 0) {
+                    let html = '<table><thead><tr><th>Date</th><th>Source</th><th>Processed</th><th>Added</th><th>Updated</th><th>Status</th></tr></thead><tbody>';
+                    result.logs.forEach(log => {
+                        html += `<tr>
+                            <td>${new Date(log.started_at).toLocaleString()}</td>
+                            <td>${log.source}</td>
+                            <td>${log.records_processed}</td>
+                            <td>${log.records_added}</td>
+                            <td>${log.records_updated}</td>
+                            <td>✅ ${log.status}</td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p style="text-align:center; padding:2rem;">No scraping logs yet. Run the GitHub scraper to see logs.</p>';
+                }
+            } catch(e) {
+                document.getElementById('scrapingLogs').innerHTML = '<p style="text-align:center; padding:2rem;">Error loading logs</p>';
+            }
+        }
+
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
@@ -255,6 +378,7 @@ Amit Kumar,amit@example.com,Austin,TX,University of Texas,2025-08-20,H1B`;
         if (checkAuth()) {
             loadStats();
             loadStudents();
+            loadScrapingLogs();
         }
     </script>
 </body>
