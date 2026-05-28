@@ -149,6 +149,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
+// ========== FIXED LOGIN ROUTE (Supports both plain text and hashed passwords) ==========
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -163,7 +164,24 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
         
-        const validPassword = await bcrypt.compare(password, user.password_hash);
+        // Check password - supports both plain text and bcrypt hash
+        let validPassword = false;
+        
+        // First try direct comparison (for plain text passwords)
+        if (password === user.password_hash) {
+            validPassword = true;
+        }
+        
+        // If not, try bcrypt compare (for hashed passwords)
+        if (!validPassword) {
+            try {
+                validPassword = await bcrypt.compare(password, user.password_hash);
+            } catch(bcryptError) {
+                // If bcrypt fails, it's likely a plain text password
+                validPassword = false;
+            }
+        }
+        
         if (!validPassword) {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
@@ -1571,4 +1589,5 @@ app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`✅ All features: ENABLED`);
     console.log(`✅ GitHub Scraper: ENABLED`);
+    console.log(`✅ Login supports both plain text and hashed passwords`);
 });
