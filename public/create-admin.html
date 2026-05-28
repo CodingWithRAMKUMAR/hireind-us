@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Admin - HireIND_US</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #0A0F1E;
+            color: white;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: #1a1f3a;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        .success { color: #48bb78; margin-top: 15px; }
+        .error { color: #f56565; margin-top: 15px; }
+        pre { text-align: left; background: #0A0F1E; padding: 10px; border-radius: 8px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>🔧 Create Admin User</h2>
+        <p>Click the button below to create an admin account</p>
+        <button onclick="createAdmin()">Create Admin</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function createAdmin() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="success">Creating admin...</div>';
+            
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'admin@hireind.com',
+                        password: 'admin123',
+                        full_name: 'System Admin',
+                        role: 'admin'
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('Response:', data);
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Admin created successfully!</div>
+                        <pre>
+Email: admin@hireind.com
+Password: admin123
+                        </pre>
+                        <a href="/login.html" style="color:#667eea;">Go to Login →</a>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch(error) {
+                resultDiv.innerHTML = `<div class="error">❌ Network error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>
