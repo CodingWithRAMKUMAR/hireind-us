@@ -6,6 +6,9 @@
     <title>Recruiter Dashboard - HireIND_US</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #0A0F1E; color: white; }
@@ -27,6 +30,7 @@
         .nav-link { color: rgba(255,255,255,0.7); text-decoration: none; transition: color 0.2s; font-size: 0.9rem; }
         .nav-link:hover { color: #667eea; }
         .credits-badge { background: linear-gradient(135deg, #667eea, #764ba2); padding: 0.5rem 1rem; border-radius: 2rem; font-size: 0.85rem; }
+        .credits-badge.zero { background: #f56565; }
         .logout-btn { background: rgba(245, 101, 101, 0.2); border: 1px solid #f56565; padding: 0.5rem 1rem; border-radius: 0.5rem; color: #f56565; cursor: pointer; }
         .badge { background: #f56565; color: white; border-radius: 50%; padding: 2px 8px; font-size: 11px; margin-left: 5px; display: inline-block; }
         .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
@@ -38,6 +42,7 @@
         select, input { width: 100%; padding: 0.75rem; background-color: #1a1f3a; border: 1px solid rgba(102, 126, 234, 0.3); border-radius: 0.5rem; color: white; font-size: 0.9rem; }
         select option { background-color: #0A0F1E; color: white; }
         .search-btn { background: linear-gradient(135deg, #667eea, #764ba2); border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; }
+        .refresh-btn { background: #48bb78; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; color: white; font-weight: 600; cursor: pointer; margin-left: 10px; }
         .students-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1.5rem; }
         .student-card { background: rgba(15, 20, 40, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(102, 126, 234, 0.2); border-radius: 1rem; padding: 1.5rem; transition: all 0.2s; }
         .student-card:hover { transform: translateY(-4px); border-color: #667eea; }
@@ -55,25 +60,10 @@
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(102, 126, 234, 0.3); }
         .modal-close { background: none; border: none; font-size: 1.5rem; color: white; cursor: pointer; }
         textarea { width: 100%; padding: 0.75rem; background: #0A0F1E; border: 1px solid #667eea; border-radius: 0.5rem; color: white; margin: 1rem 0; font-family: inherit; }
-        .resume-list { margin-top: 1rem; }
-        .resume-item { background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
-        .download-resume-btn { background: #48bb78; border: none; padding: 0.25rem 0.75rem; border-radius: 0.25rem; color: white; cursor: pointer; font-size: 0.75rem; }
-        .download-resume-btn:hover { background: #38a169; }
         .loading { text-align: center; padding: 2rem; }
         .spinner { width: 40px; height: 40px; border: 3px solid rgba(102, 126, 234, 0.2); border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 768px) { .container { padding: 1rem; } .students-grid { grid-template-columns: 1fr; } .nav-links { justify-content: center; } }
-        
-        /* Credit warning style */
-        .credits-badge.low-credits {
-            background: #f56565;
-            animation: pulse 1s infinite;
-        }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
-        }
     </style>
 </head>
 <body>
@@ -101,8 +91,10 @@
                 <select id="stateFilter"><option value="">All States</option><option value="CA">California</option><option value="TX">Texas</option><option value="NY">New York</option><option value="MA">Massachusetts</option><option value="WA">Washington</option><option value="IL">Illinois</option></select>
                 <select id="visaFilter"><option value="">All Visas</option><option value="OPT_1st_year">OPT (1st Year)</option><option value="OPT_2nd_year">OPT (2nd Year)</option><option value="STEM_OPT">STEM OPT</option><option value="H1B">H1B</option></select>
             </div>
-            <button class="search-btn" onclick="searchCandidates()"><i class="fas fa-search"></i> Search Candidates</button>
-            <button class="search-btn" onclick="refreshCredits()" style="background: #48bb78; margin-left: 10px;"><i class="fas fa-sync-alt"></i> Refresh Credits</button>
+            <div>
+                <button class="search-btn" onclick="searchCandidates()"><i class="fas fa-search"></i> Search Candidates</button>
+                <button class="refresh-btn" onclick="forceRefresh()"><i class="fas fa-sync-alt"></i> Force Refresh Credits</button>
+            </div>
         </div>
 
         <div id="results" class="students-grid"><div class="loading"><div class="spinner"></div><p>Loading candidates...</p></div></div>
@@ -131,7 +123,6 @@
         const API_URL = '';
         let selectedStudentId = null;
         let recruiterData = null;
-        let refreshInterval = null;
 
         function getToken() { return localStorage.getItem('token'); }
         function checkAuth() { if (!getToken()) { window.location.href = '/login.html'; return false; } return true; }
@@ -139,7 +130,8 @@
         async function loadUnreadCount() {
             try {
                 const response = await fetch(`${API_URL}/api/recruiter/unread-count?t=${Date.now()}`, {
-                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` },
+                    cache: 'no-store'
                 });
                 const result = await response.json();
                 const badge = document.getElementById('inboxBadge');
@@ -152,23 +144,31 @@
             } catch(e) { console.error('Unread count error:', e); }
         }
 
-        // Manual refresh button
-        async function refreshCredits() {
-            await loadStats();
-            alert('Credits refreshed: ' + document.getElementById('creditsRemaining').innerText);
+        // Force refresh - clears cache and fetches fresh data
+        async function forceRefresh() {
+            console.log('Force refreshing credits...');
+            const credits = await loadStats();
+            alert(`Credits refreshed: ${credits}`);
+            await searchCandidates();
         }
 
-        // FIXED: Force fresh data from server every time
+        // Load stats with NO CACHE
         async function loadStats() {
             try {
-                const response = await fetch(`${API_URL}/api/recruiter/stats?t=${Date.now()}`, {
-                    headers: { 'Authorization': `Bearer ${getToken()}` },
-                    cache: 'no-cache'
+                // Add random timestamp to prevent any caching
+                const timestamp = Date.now();
+                const response = await fetch(`${API_URL}/api/recruiter/stats?nocache=${timestamp}`, {
+                    headers: { 
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache'
+                    },
+                    cache: 'no-store'
                 });
                 const result = await response.json();
                 if (result.success) {
                     const credits = result.recruiter?.credits || 0;
-                    console.log('💰 Credits from server:', credits);
+                    console.log('💰 Credits from server (fresh):', credits);
                     
                     // Update all credit displays
                     document.getElementById('totalCandidates').innerText = result.totalStudents || 0;
@@ -177,34 +177,15 @@
                     document.getElementById('myCredits').innerText = credits;
                     document.getElementById('myHires').innerText = result.recruiter?.total_hires || 0;
                     
-                    // Update modal if open
-                    const modalCreditsSpan = document.getElementById('modalCredits');
-                    if (modalCreditsSpan) {
-                        modalCreditsSpan.innerText = credits;
-                    }
-                    
-                    // Change badge color if low credits
-                    const creditsBadge = document.getElementById('creditsBadge');
-                    if (credits <= 2 && credits > 0) {
-                        creditsBadge.classList.add('low-credits');
+                    // Update badge color
+                    const badge = document.getElementById('creditsBadge');
+                    if (credits === 0) {
+                        badge.classList.add('zero');
                     } else {
-                        creditsBadge.classList.remove('low-credits');
+                        badge.classList.remove('zero');
                     }
                     
                     if (recruiterData) recruiterData.credits = credits;
-                    
-                    // Disable contact buttons if no credits
-                    const contactBtns = document.querySelectorAll('.contact-btn');
-                    contactBtns.forEach(btn => {
-                        if (credits <= 0) {
-                            btn.classList.add('disabled');
-                            btn.disabled = true;
-                        } else {
-                            btn.classList.remove('disabled');
-                            btn.disabled = false;
-                        }
-                    });
-                    
                     return credits;
                 }
             } catch(e) { console.error('Stats error:', e); }
@@ -215,15 +196,16 @@
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Searching...</p></div>';
             try {
-                const response = await fetch(`${API_URL}/api/recruiter/search`, {
+                // First get fresh credits
+                const currentCredits = await loadStats();
+                
+                const response = await fetch(`${API_URL}/api/recruiter/search?t=${Date.now()}`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+                    headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
                     body: JSON.stringify({ state: document.getElementById('stateFilter').value, visa: document.getElementById('visaFilter').value })
                 });
                 const result = await response.json();
                 if (result.success && result.students) { 
-                    // Get fresh credits before displaying
-                    const currentCredits = await loadStats();
                     displayStudents(result.students, currentCredits);
                 } else { 
                     resultsDiv.innerHTML = '<p style="text-align:center; padding:2rem;">No candidates found</p>'; 
@@ -261,8 +243,8 @@
             content.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading profile...</p></div>';
             modal.classList.add('active');
             try {
-                const response = await fetch(`${API_URL}/api/recruiter/student/${studentId}`, {
-                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                const response = await fetch(`${API_URL}/api/recruiter/student/${studentId}?t=${Date.now()}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}`, 'Cache-Control': 'no-cache' }
                 });
                 const result = await response.json();
                 if (result.success) {
@@ -292,8 +274,8 @@
 
         async function downloadResume(resumeId) {
             try {
-                const response = await fetch(`${API_URL}/api/download-resume/${resumeId}`, {
-                    headers: { 'Authorization': `Bearer ${getToken()}` }
+                const response = await fetch(`${API_URL}/api/download-resume/${resumeId}?t=${Date.now()}`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}`, 'Cache-Control': 'no-cache' }
                 });
                 const result = await response.json();
                 if (result.success) { window.open(result.download_url, '_blank'); }
@@ -301,12 +283,12 @@
             } catch(e) { alert('Network error'); }
         }
 
-        // FIXED: Get real-time credits from server when opening modal
+        // Open modal - first refresh credits from server
         async function openContactModal(studentId) {
             // Force refresh credits before opening modal
             const credits = await loadStats();
             
-            console.log('Opening modal with credits:', credits);
+            console.log('Opening modal with credits (fresh):', credits);
             
             if (credits <= 0) { 
                 alert('No credits remaining! You have 0 credits left.'); 
@@ -323,7 +305,6 @@
         function closeContactModal() { document.getElementById('contactModal').classList.remove('active'); }
         function closeProfileModal() { document.getElementById('profileModal').classList.remove('active'); }
 
-        // FIXED: Refresh stats immediately after contact
         async function sendContact() {
             const message = document.getElementById('contactMessage').value;
             if (!message) { alert('Please enter a message'); return; }
@@ -336,7 +317,7 @@
             try {
                 const response = await fetch(`${API_URL}/api/recruiter/contact`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+                    headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
                     body: JSON.stringify({ student_id: selectedStudentId, message: message })
                 });
                 const result = await response.json();
@@ -352,11 +333,11 @@
                     if (recruiterData) recruiterData.credits = newCredits;
                     
                     // Update badge color
-                    const creditsBadge = document.getElementById('creditsBadge');
-                    if (newCredits <= 2 && newCredits > 0) {
-                        creditsBadge.classList.add('low-credits');
+                    const badge = document.getElementById('creditsBadge');
+                    if (newCredits === 0) {
+                        badge.classList.add('zero');
                     } else {
-                        creditsBadge.classList.remove('low-credits');
+                        badge.classList.remove('zero');
                     }
                     
                     alert('✅ ' + result.message);
@@ -392,30 +373,14 @@
         }
 
         function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
-        function logout() { 
-            if (refreshInterval) clearInterval(refreshInterval);
-            localStorage.removeItem('token'); 
-            localStorage.removeItem('user'); 
-            window.location.href = '/login.html'; 
-        }
+        function logout() { localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.href = '/login.html'; }
 
         // Initialize
         if (checkAuth()) { 
             loadStats(); 
             searchCandidates(); 
             loadUnreadCount();
-            // Refresh credits every 10 seconds
-            refreshInterval = setInterval(() => {
-                if (checkAuth()) {
-                    loadStats();
-                }
-            }, 10000);
         }
-        
-        // Cleanup interval on page unload
-        window.addEventListener('beforeunload', function() {
-            if (refreshInterval) clearInterval(refreshInterval);
-        });
     </script>
 </body>
 </html>
