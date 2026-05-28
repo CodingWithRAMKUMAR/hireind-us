@@ -293,7 +293,7 @@ app.get('/api/student/dashboard', authenticateToken, async (req, res) => {
     }
 });
 
-// ========== UPDATED STUDENT UPDATE ROUTE (New Fields Added) ==========
+// ========== UPDATED STUDENT UPDATE ROUTE ==========
 app.post('/api/student/update', authenticateToken, upload.single('resume'), async (req, res) => {
     try {
         if (req.user.role !== 'student') {
@@ -385,7 +385,7 @@ app.post('/api/student/update', authenticateToken, upload.single('resume'), asyn
         if (req.body.github_url !== undefined) updateData.github_url = req.body.github_url;
         if (resume_url) updateData.resume_url = resume_url;
         
-        // NEW FIELDS ADDED (for enhanced search)
+        // NEW FIELDS
         if (req.body.preferred_job_title !== undefined) updateData.preferred_job_title = req.body.preferred_job_title;
         if (req.body.current_company !== undefined) updateData.current_company = req.body.current_company;
         if (req.body.job_search_status !== undefined) updateData.job_search_status = req.body.job_search_status;
@@ -846,15 +846,21 @@ app.post('/api/notifications/mark-read', authenticateToken, async (req, res) => 
     }
 });
 
-// ========== RECRUITER ROUTES ==========
-
+// ========== UPDATED RECRUITER SEARCH WITH ALL FILTERS ==========
 app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        const { state, visa } = req.body;
+        const { 
+            state, visa, skill, 
+            preferred_job_title, current_company, 
+            job_search_status, graduation_year,
+            exp_min, exp_max, experience_gap 
+        } = req.body;
+        
+        console.log('🔍 Search filters:', req.body);
         
         let query = supabase
             .from('students')
@@ -862,12 +868,44 @@ app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
             .eq('profile_status', 'active')
             .eq('is_actively_looking', true);
         
+        // Basic filters
         if (state && state !== '') query = query.eq('current_state', state);
         if (visa && visa !== '') query = query.eq('visa_type', visa);
+        if (graduation_year && graduation_year !== '') query = query.eq('graduation_year', parseInt(graduation_year));
+        
+        // Advanced filters
+        if (preferred_job_title && preferred_job_title !== '') {
+            query = query.ilike('preferred_job_title', `%${preferred_job_title}%`);
+        }
+        if (current_company && current_company !== '') {
+            query = query.ilike('current_company', `%${current_company}%`);
+        }
+        if (job_search_status && job_search_status !== '') {
+            query = query.eq('job_search_status', job_search_status);
+        }
+        if (experience_gap && experience_gap !== '') {
+            query = query.eq('experience_gap', experience_gap);
+        }
+        
+        // Experience range filter
+        if (exp_min && exp_min !== '') {
+            query = query.gte('experience_range_max', parseFloat(exp_min));
+        }
+        if (exp_max && exp_max !== '') {
+            query = query.lte('experience_range_min', parseFloat(exp_max));
+        }
+        
+        // Skill/job title search
+        if (skill && skill !== '') {
+            query = query.ilike('preferred_job_title', `%${skill}%`);
+        }
         
         const { data: students, error } = await query;
         if (error) throw error;
         
+        console.log(`📊 Found ${students?.length || 0} students`);
+        
+        // Hide contact info
         const hiddenStudents = students?.map(s => ({
             id: s.id,
             full_name: s.full_name,
@@ -876,28 +914,47 @@ app.post('/api/recruiter/search', authenticateToken, async (req, res) => {
             university_name: s.university_name,
             visa_type: s.visa_type,
             graduation_date: s.graduation_date,
-            profile_view_count: s.profile_view_count
+            graduation_year: s.graduation_year,
+            profile_view_count: s.profile_view_count || 0,
+            preferred_job_title: s.preferred_job_title,
+            current_company: s.current_company,
+            job_search_status: s.job_search_status,
+            experience_range_min: s.experience_range_min,
+            experience_range_max: s.experience_range_max,
+            experience_gap: s.experience_gap
         })) || [];
         
         res.json({ success: true, count: hiddenStudents.length, students: hiddenStudents });
         
     } catch (error) {
         console.error('Search error:', error);
-        res.status(500).json({ error: 'Search failed' });
+        res.status(500).json({ error: 'Search failed: ' + error.message });
     }
 });
 
+// ========== FIXED RECRUITER STATS ROUTE ==========
 app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
             return res.status(403).json({ error: 'Access denied' });
         }
         
-        const { data: recruiter } = await supabase
+        // Get recruiter credits from database
+        const { data: recruiter, error: recruiterError } = await supabase
             .from('recruiters')
-            .select('*')
+            .select('credits_remaining, total_hires, total_contacts')
             .eq('auth_user_id', req.user.id)
             .single();
+        
+        if (recruiterError) {
+            console.error('Recruiter fetch error:', recruiterError);
+            return res.json({
+                success: true,
+                totalStudents: 0,
+                optStudents: 0,
+                recruiter: { credits: 0, total_hires: 0, total_contacts: 0 }
+            });
+        }
         
         const { count: totalStudents } = await supabase
             .from('students')
@@ -910,12 +967,16 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
             .in('visa_type', ['OPT_1st_year', 'OPT_2nd_year', 'STEM_OPT'])
             .eq('profile_status', 'active');
         
+        const actualCredits = recruiter?.credits_remaining !== undefined ? recruiter.credits_remaining : 0;
+        
+        console.log(`📊 Stats: User has ${actualCredits} credits`);
+        
         res.json({
             success: true,
             totalStudents: totalStudents || 0,
             optStudents: optStudents || 0,
             recruiter: {
-                credits: recruiter?.credits_remaining || 10,
+                credits: actualCredits,
                 total_hires: recruiter?.total_hires || 0,
                 total_contacts: recruiter?.total_contacts || 0
             }
@@ -927,6 +988,7 @@ app.get('/api/recruiter/stats', authenticateToken, async (req, res) => {
     }
 });
 
+// ========== VIEW STUDENT PROFILE ==========
 app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'recruiter') {
@@ -957,6 +1019,7 @@ app.get('/api/recruiter/student/:studentId', authenticateToken, async (req, res)
             .eq('student_id', student.id)
             .order('uploaded_at', { ascending: false });
         
+        // Increment profile view count
         await supabase
             .from('students')
             .update({ profile_view_count: (student.profile_view_count || 0) + 1 })
@@ -992,17 +1055,15 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
     try {
         console.log('========== CONTACT API CALLED ==========');
         console.log('User:', req.user.email);
-        console.log('User role:', req.user.role);
-        console.log('Request body:', req.body);
         
         if (req.user.role !== 'recruiter') {
-            return res.status(403).json({ error: 'Access denied - Not a recruiter' });
+            return res.status(403).json({ error: 'Access denied' });
         }
         
         const { student_id, message } = req.body;
         
         if (!student_id) {
-            return res.status(400).json({ error: 'Student ID is required' });
+            return res.status(400).json({ error: 'Student ID required' });
         }
         
         // Get recruiter details
@@ -1012,37 +1073,32 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
             .eq('auth_user_id', req.user.id)
             .single();
         
-        if (recruiterError) {
-            console.error('Recruiter fetch error:', recruiterError);
-            return res.status(404).json({ error: 'Recruiter profile not found' });
+        if (recruiterError || !recruiter) {
+            console.error('Recruiter error:', recruiterError);
+            return res.status(404).json({ error: 'Recruiter not found' });
         }
         
-        console.log('Recruiter found - ID:', recruiter.id, 'Credits:', recruiter.credits_remaining);
+        console.log('Current credits:', recruiter.credits_remaining);
         
-        // Check credits
         if (recruiter.credits_remaining <= 0) {
-            return res.status(402).json({ error: 'No credits remaining. Please purchase more credits.' });
+            return res.status(402).json({ error: 'No credits remaining' });
         }
         
         // Get student details
         const { data: student, error: studentError } = await supabase
             .from('students')
-            .select('id, auth_user_id, email, full_name')
+            .select('id, auth_user_id')
             .eq('id', student_id)
             .single();
         
         if (studentError || !student) {
-            console.error('Student fetch error:', studentError);
+            console.error('Student error:', studentError);
             return res.status(404).json({ error: 'Student not found' });
         }
         
-        console.log('Student found - ID:', student.id, 'Email:', student.email);
-        
-        // Calculate new values
+        // Calculate new credits
         const newCredits = recruiter.credits_remaining - 1;
         const newTotalContacts = (recruiter.total_contacts || 0) + 1;
-        
-        console.log('Updating credits:', recruiter.credits_remaining, '->', newCredits);
         
         // Update recruiter credits
         const { error: updateError } = await supabase
@@ -1055,59 +1111,43 @@ app.post('/api/recruiter/contact', authenticateToken, async (req, res) => {
         
         if (updateError) {
             console.error('Credit update error:', updateError);
-            return res.status(500).json({ error: 'Failed to update credits: ' + updateError.message });
+            return res.status(500).json({ error: 'Failed to update credits' });
         }
         
-        console.log('Credits updated successfully');
-        
         // Save contact log
-        const { error: contactError } = await supabase
+        await supabase
             .from('contact_logs')
             .insert({
                 recruiter_id: recruiter.id,
                 student_id: student_id,
-                message: message || 'No message provided',
+                message: message,
                 contacted_at: new Date().toISOString(),
                 is_read: false
             });
         
-        if (contactError) {
-            console.error('Contact log error:', contactError);
-        } else {
-            console.log('Contact log saved');
-        }
-        
         // Send notification to student
         if (student.auth_user_id) {
-            const { error: notifyError } = await supabase
+            await supabase
                 .from('notifications')
                 .insert({
                     user_id: student.auth_user_id,
                     type: 'contact',
                     title: `New Message from ${recruiter.company_name}`,
-                    message: message ? message.substring(0, 100) : 'A recruiter is interested in your profile',
+                    message: message.substring(0, 100),
                     is_read: false
                 });
-            
-            if (notifyError) {
-                console.error('Notification error:', notifyError);
-            } else {
-                console.log('Notification sent to student');
-            }
         }
         
-        console.log('========== CONTACT SUCCESSFUL ==========');
-        console.log('New credits remaining:', newCredits);
+        console.log('Contact successful. New credits:', newCredits);
         
         res.json({ 
             success: true, 
-            message: 'Student contacted successfully!',
+            message: 'Student contacted successfully',
             credits_remaining: newCredits
         });
         
     } catch (error) {
-        console.error('========== CONTACT ERROR ==========');
-        console.error(error);
+        console.error('Contact error:', error);
         res.status(500).json({ error: 'Failed to contact student: ' + error.message });
     }
 });
