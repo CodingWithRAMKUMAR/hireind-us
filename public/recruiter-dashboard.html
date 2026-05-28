@@ -101,7 +101,7 @@
             <div class="filter-row">
                 <div class="filter-group">
                     <label><i class="fas fa-code"></i> Skills / Job Title</label>
-                    <input type="text" id="skillSearch" placeholder="Python, Java, React, or Job Title...">
+                    <input type="text" id="skillSearch" placeholder="Python, Java, React, Data Analyst...">
                 </div>
                 <div class="filter-group">
                     <label><i class="fas fa-map-marker-alt"></i> State</label>
@@ -129,12 +129,12 @@
                 <i class="fas fa-sliders-h"></i> Advanced Filters <i class="fas fa-chevron-down"></i>
             </div>
 
-            <!-- Advanced Filters (Hidden by default) -->
+            <!-- Advanced Filters -->
             <div id="advancedFilters" class="advanced-filters">
                 <div class="filter-row">
                     <div class="filter-group">
                         <label><i class="fas fa-briefcase"></i> Preferred Job Title</label>
-                        <input type="text" id="preferredJobTitleFilter" placeholder="e.g., Java Developer, Full Stack">
+                        <input type="text" id="preferredJobTitleFilter" placeholder="e.g., Data Analyst, Java Developer">
                     </div>
                     <div class="filter-group">
                         <label><i class="fas fa-building"></i> Current Company</label>
@@ -218,8 +218,7 @@
         function checkAuth() { if (!getToken()) { window.location.href = '/login.html'; return false; } return true; }
 
         function toggleAdvancedFilters() {
-            const div = document.getElementById('advancedFilters');
-            div.classList.toggle('show');
+            document.getElementById('advancedFilters').classList.toggle('show');
         }
 
         function resetFilters() {
@@ -325,8 +324,9 @@
                     <div class="student-details">
                         <span class="detail-badge"><i class="fas fa-map-marker-alt"></i> ${s.current_city || 'N/A'}, ${s.current_state || 'N/A'}</span>
                         <span class="detail-badge"><i class="fas fa-passport"></i> ${formatVisa(s.visa_type)}</span>
-                        <span class="detail-badge"><i class="fas fa-calendar"></i> Grad: ${s.graduation_year || s.graduation_date?.slice(0,4) || 'N/A'}</span>
+                        <span class="detail-badge"><i class="fas fa-calendar"></i> Grad: ${s.graduation_year || (s.graduation_date ? s.graduation_date.slice(0,4) : 'N/A')}</span>
                         <span class="detail-badge"><i class="fas fa-chart-line"></i> Exp: ${s.experience_range_min || '0'}-${s.experience_range_max || '0'} yrs</span>
+                        <span class="detail-badge"><i class="fas fa-eye"></i> ${s.profile_view_count || 0} views</span>
                         <span class="status-badge ${statusClass}">${statusText}</span>
                     </div>
                     <div class="student-details">
@@ -399,7 +399,7 @@
         }
 
         async function openContactModal(studentId) {
-            const credits = await loadStats();
+            const credits = parseInt(document.getElementById('creditsRemaining').innerText) || 0;
             if (credits <= 0) { alert('No credits remaining!'); return; }
             selectedStudentId = studentId;
             document.getElementById('modalCredits').innerText = credits;
